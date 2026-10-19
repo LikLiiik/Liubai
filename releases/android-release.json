@@ -1,0 +1,19 @@
+{
+  "name": "留白",
+  "version": "0.1.0",
+  "androidVersionCode": 1,
+  "package": "app.liubai.planner",
+  "file": "liubai-0.1.0-android.apk",
+  "sizeBytes": 98900366,
+  "sha256": "17b0ec8aaf7afd161fe3e6e8175cbc097ea38510375d0fdd12b45176ed5d2d00",
+  "buildId": "3d3158c9-9b7b-49c1-acae-68feee0ffbfa",
+  "buildUrl": "https://expo.dev/accounts/likliiik/projects/liubai-planner/builds/3d3158c9-9b7b-49c1-acae-68feee0ffbfa",
+  "downloadUrl": "https://expo.dev/artifacts/eas/qj5VBw1zFxKLdp6KxEW_KZBRT9rUPbM4mhfpLV3nRiI.apk",
+  "checks": {
+    "archiveCrc": "passed",
+    "package": "passed",
+    "embeddedBundle": "passed",
+    "arm64Libraries": "passed"
+  },
+  "deviceTesting": "pending"
+}

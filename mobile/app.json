@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "留白",
+    "slug": "liubai-planner",
+    "scheme": "liubai",
+    "version": "0.1.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.liubai.planner"
+    },
+    "android": {
+      "package": "app.liubai.planner"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "static",
+      "name": "留白 · 给今天留一点余地"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-notifications",
+      "expo-font"
+    ],
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "9b28868b-969f-4cc4-ae43-5ed34d53252b"
+      }
+    }
+  }
+}
