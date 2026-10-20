@@ -35,6 +35,22 @@ async function request(url, method = 'GET', body, headers = {}) {
   if (!response.ok) throw new Error(`GitHub ${method} failed: ${response.status}`);
   return response.json();
 }
+async function verifyAsset(asset, bytes) {
+  assert.equal(asset.size, bytes.length, 'Asset size differs; refusing to replace it');
+  const expected = createHash('sha256').update(bytes).digest('hex');
+  if (asset.digest) {
+    assert.equal(asset.digest, `sha256:${expected}`, 'Asset digest differs; refusing to replace it');
+  } else {
+    assert.ok(Number.isSafeInteger(asset.id) && asset.id > 0);
+    const proof = await fetch(`https://api.github.com/repos/${repository}/releases/assets/${asset.id}`, {
+      headers: { ...auth, Accept: 'application/octet-stream' }, signal: AbortSignal.timeout(180_000),
+    });
+    assert.ok(proof.ok, `Asset verification download failed: ${proof.status}`);
+    const downloaded = Buffer.from(await proof.arrayBuffer());
+    assert.equal(downloaded.length, bytes.length);
+    assert.equal(createHash('sha256').update(downloaded).digest('hex'), expected);
+  }
+}
 // No GitHub credentials are sent to the artifact host.
 const artifact = await fetch(metadata.buildDownloadUrl, { signal: AbortSignal.timeout(180_000) });
 assert.ok(artifact.ok, `APK download failed: ${artifact.status}`);
@@ -55,16 +71,13 @@ const assets = [
   { name: 'android-release.json', bytes: Buffer.from(`${JSON.stringify(metadata, null, 2)}\n`), type: 'application/json' },
 ];
 for (const asset of assets) {
-  const digest = `sha256:${createHash('sha256').update(asset.bytes).digest('hex')}`;
   const existing = release.assets.find(item => item.name === asset.name);
   if (existing) {
-    assert.equal(existing.size, asset.bytes.length, 'Existing asset differs; refusing to replace it');
-    assert.equal(existing.digest, digest, 'Existing asset differs; refusing to replace it');
+    await verifyAsset(existing, asset.bytes);
   } else {
     assert.equal(release.draft, true, 'Refusing to modify an already published release');
     const uploaded = await request(`${uploadUrl}?name=${encodeURIComponent(asset.name)}`, 'POST', asset.bytes, { 'Content-Type': asset.type });
-    assert.equal(uploaded.size, asset.bytes.length);
-    assert.equal(uploaded.digest, digest);
+    await verifyAsset(uploaded, asset.bytes);
   }
 }
 if (release.draft) release = await request(`${api}/${release.id}`, 'PATCH', JSON.stringify({ draft: false, make_latest: 'true' }), { 'Content-Type': 'application/json' });
