@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { addDays, layoutDay, moveTaskTo, positionFromPoint, validDate, weekDates } from '../src/week.ts';
+import { addDays, layoutDay, moveTaskTo, overlapConsentKey, positionFromPoint, validDate, weekDates } from '../src/week.ts';
 import type { Settings, Task } from '../src/types.ts';
 
 const settings: Settings = { dayStart: 540, dayEnd: 1080, buffer: 10 };
@@ -52,12 +52,21 @@ test('fixed tasks cannot move without explicit confirmation and stay fixed after
   assert.equal(moveTaskTo(allowed.tasks, 'fixed', { date: today, start: 1000 }, settings, today).ok, false);
 });
 
-test('conflict rejects the drop, including overlaps with completed or fixed tasks', () => {
+test('overlap requests confirmation before the drop, including completed or fixed events', () => {
   for (const other of [task('other', { start: 900 }), task('other', { start: 900, fixed: true }), task('other', { start: 900, completed: true })]) {
     const source = [task('moving'), other];
     const result = moveTaskTo(source, 'moving', { date: today, start: 915 }, settings, today);
     assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.confirmation, 'overlap');
     assert.equal(source[0].start, 600);
+    const accepted = moveTaskTo(source, 'moving', { date: today, start: 915 }, settings, today, false, false, true);
+    assert.equal(accepted.ok, true);
+    if (accepted.ok) {
+      assert.equal(accepted.tasks[0].start, 915);
+      assert.equal(accepted.tasks[1], other);
+      assert.equal(accepted.conflicts[0], other);
+      assert.ok(accepted.change?.reason.includes('经确认保留重叠安排'));
+    }
   }
 });
 
@@ -109,10 +118,69 @@ test('fixed and non-preferred hours require independent, one-time permissions', 
   }
 });
 
-test('confirmation cannot bypass overlaps or hard deadlines, including midnight endings', () => {
+test('preference consent cannot bypass overlap consent or hard deadlines, including midnight endings', () => {
   assert.equal(moveTaskTo([task('a'), task('b', { start: 0 })], 'a', { date: today, start: 0 }, settings, today, true, true).ok, false);
   assert.equal(moveTaskTo([task('a', { deadline: today })], 'a', { date: '2026-10-20', start: 0 }, settings, today, true, true).ok, false);
   assert.equal(moveTaskTo([task('a', { deadline: today })], 'a', { date: today, start: 1395 }, settings, today, true, true).ok, false);
+});
+
+test('overlap, fixed movement and outside-preference consent remain independent and apply only once', () => {
+  const source = [task('a', { fixed: true }), task('b', { start: 0 })];
+  const position = { date: today, start: 0 };
+  assert.equal(moveTaskTo(source, 'a', position, settings, today, false, true, true).ok, false);
+  const outside = moveTaskTo(source, 'a', position, settings, today, true, false, true);
+  assert.equal(outside.ok, false);
+  if (!outside.ok) assert.equal(outside.confirmation, 'outside-preferences');
+  const overlap = moveTaskTo(source, 'a', position, settings, today, true, true);
+  assert.equal(overlap.ok, false);
+  if (!overlap.ok) assert.equal(overlap.confirmation, 'overlap');
+  const accepted = moveTaskTo(source, 'a', position, settings, today, true, true, true);
+  assert.equal(accepted.ok, true);
+  if (!accepted.ok) return;
+  assert.equal(accepted.tasks[0].fixed, true);
+  assert.equal(moveTaskTo(accepted.tasks, 'a', { date: today, start: 15 }, settings, today, true, true).ok, false);
+  assert.deepEqual(source[0], task('a', { fixed: true }));
+});
+
+test('even explicit overlap consent cannot bypass a deadline, invalid date or completed-task protection', () => {
+  const source = [task('a', { deadline: today }), task('b', { start: 15, date: '2026-10-20' })];
+  assert.equal(moveTaskTo(source, 'a', { date: '2026-10-20', start: 0 }, settings, today, true, true, true).ok, false);
+  assert.equal(moveTaskTo(source, 'a', { date: '2026-02-30', start: 0 }, settings, today, true, true, true).ok, false);
+  assert.equal(moveTaskTo([task('a', { completed: true })], 'a', { date: today, start: 900 }, settings, today, true, true, true).ok, false);
+});
+
+test('manual overlap across midnight uses real dates and preserves the other event', () => {
+  const nextDate = '2026-10-20';
+  const source = [task('night', { start: 1380, duration: 120 }), task('early', { date: nextDate, start: 30, duration: 60 })];
+  const position = { date: nextDate, start: 0 };
+  const pending = moveTaskTo(source, 'early', position, settings, today, false, true);
+  assert.equal(pending.ok, false);
+  if (!pending.ok) assert.equal(pending.confirmation, 'overlap');
+  const accepted = moveTaskTo(source, 'early', position, settings, today, false, true, true);
+  assert.equal(accepted.ok, true);
+  if (accepted.ok) {
+    assert.equal(accepted.tasks[0], source[0]);
+    assert.equal(accepted.tasks[1].date, nextDate);
+    assert.equal(accepted.tasks[1].start, 0);
+  }
+});
+
+test('overlap consent belongs to the precise task position and overlapping event set', () => {
+  const proposed = task('a');
+  const conflicts = [task('b'), task('c', { start: 620 })];
+  const key = overlapConsentKey(proposed, conflicts);
+  assert.equal(overlapConsentKey(proposed, conflicts.slice().reverse()), key);
+  assert.notEqual(overlapConsentKey({ ...proposed, start: 615 }, conflicts), key);
+  assert.notEqual(overlapConsentKey({ ...proposed, duration: 90 }, conflicts), key);
+  assert.notEqual(overlapConsentKey(proposed, [conflicts[0]]), key);
+  assert.notEqual(overlapConsentKey(proposed, [conflicts[0], { ...conflicts[1], start: 630 }]), key);
+  assert.notEqual(overlapConsentKey(proposed, [...conflicts, task('new')]), key);
+});
+
+test('saving an existing overlapping position unchanged does not ask again or create history', () => {
+  const result = moveTaskTo([task('a'), task('b')], 'a', { date: today, start: 600 }, settings, today);
+  assert.equal(result.ok, true);
+  if (result.ok) assert.equal(result.change, null);
 });
 
 test('full-day grid maps midnight and late-night positions regardless of preferences', () => {

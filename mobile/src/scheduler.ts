@@ -59,10 +59,10 @@ export function createPlan(original: Task[], settings: Settings, request: Rescue
 
   if (request.reason === 'interruption') {
     const end = now + request.minutes;
-    const collisions = tasks.filter(t => t.fixed && relativeStart(t, date) !== null && relativeStart(t, date)! < end && relativeStart(t, date)! + t.duration > now);
+    const collisions = tasks.filter(t => (t.fixed || t.completed) && relativeStart(t, date) !== null && relativeStart(t, date)! < end && relativeStart(t, date)! + t.duration > now);
     if (end > (settings.dayEnd > 1440 ? LATEST_END : 1440)) { warnings.push('临时事项超出当前一天的范围，请调整时长。'); valid = false; }
     if (collisions.length) {
-      warnings.push(`临时事项与固定事项「${collisions.map(t => t.title).join('、')}」冲突，请先处理固定时间。`);
+      warnings.push(`临时事项与已保留事项「${collisions.map(t => t.title).join('、')}」冲突，请先处理固定或已完成事项。`);
       valid = false;
     }
     tasks.push({ id: `interruption-${date}-${now}`, title: '临时事项', notes: '通过一键救场加入', duration: request.minutes,
@@ -81,8 +81,7 @@ export function createPlan(original: Task[], settings: Settings, request: Rescue
   for (let i = 0; i < fixed.length; i++) {
     for (let j = i + 1; j < fixed.length; j++) {
       if (relativeStart(fixed[i], date)! < relativeStart(fixed[j], date)! + fixed[j].duration && relativeStart(fixed[j], date)! < relativeStart(fixed[i], date)! + fixed[i].duration) {
-        valid = false;
-        const message = `固定事项「${fixed[i].title}」与「${fixed[j].title}」时间重叠。`;
+        const message = `保留已有固定事项「${fixed[i].title}」与「${fixed[j].title}」的重叠安排，其他任务避开这段时间。`;
         if (!warnings.includes(message)) warnings.push(message);
       }
     }

@@ -6,6 +6,7 @@ import { clock, nextDay, uid } from '../utils';
 import { scheduleTask } from '../scheduler';
 import type { Category, Priority, Task } from '../types';
 import { finishesByDeadline, overlaps, parseTime } from '../time';
+import { overlapConsentKey } from '../week';
 import { Button, Chip, Confirm, Dialog, FieldTitle, Label } from './ui';
 export { parseTime } from '../time';
 
@@ -29,8 +30,12 @@ function TaskEditorForm({ visible, task, target = 'today', initialDate, onClose 
   const [deadline, setDeadline] = useState(task?.deadline ?? '');
   const [error, setError] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [taskId] = useState(() => task?.id ?? uid());
+  const [overlapRequest, setOverlapRequest] = useState<{ key: string; task: Task; conflicts: Task[] } | null>(null);
 
-  function save() {
+  function save(consentKey?: string) {
+    setOverlapRequest(null);
+    setError('');
     const minutes = Number(duration);
     if (!title.trim()) { setError('先给这件事起一个名字。'); return; }
     if (!Number.isInteger(minutes) || minutes < 5 || minutes > 720) { setError('预计时长请输入 5–720 之间的整数分钟。'); return; }
@@ -43,13 +48,14 @@ function TaskEditorForm({ visible, task, target = 'today', initialDate, onClose 
     if (fixed && date && start === null) { setError('请输入有效的开始时间。'); return; }
     const timingChanged = !task || task.date !== date || task.start !== start || task.duration !== minutes;
     if ((timingChanged || task?.deadline !== (deadline || null)) && date && start !== null && !finishesByDeadline(date, start, minutes, deadline || null)) { setError('任务结束时间超过截止日期，请调整时间或时长。'); return; }
-    if (timingChanged && date && start !== null && data.tasks.some(item => item.id !== task?.id && overlaps({ ...item, date, start, duration: minutes }, item))) {
-      setError('这个时间已有安排，请换一个时间，或先通过一键救场腾出位置。'); return;
-    }
-    const updated: Task = { id: task?.id ?? uid(), title: title.trim(), notes: notes.trim(), duration: minutes,
+    const updated: Task = { id: taskId, title: title.trim(), notes: notes.trim(), duration: minutes,
       category, priority, important, fixed: !!date && fixed, completed: task?.completed ?? false,
       completedAt: task?.completedAt, date, start, deadline: deadline || null, postponed: task?.postponed ?? 0,
       courseImport: task?.courseImport, inboxReminderAfter: task?.inboxReminderAfter };
+    const conflicts = timingChanged ? data.tasks.filter(item => item.id !== taskId && overlaps(updated, item)) : [];
+    if (conflicts.length && consentKey !== overlapConsentKey(updated, conflicts)) {
+      setOverlapRequest({ key: overlapConsentKey(updated, conflicts), task: updated, conflicts }); return;
+    }
     let next = task ? data.tasks.map(item => item.id === task.id ? updated : item) : [...data.tasks, updated];
     let noSlot = false;
     if (date && !updated.fixed && start === null) {
@@ -62,10 +68,10 @@ function TaskEditorForm({ visible, task, target = 'today', initialDate, onClose 
     onClose();
   }
 
-  return <><Dialog visible={visible && !deleting} title={task ? '编辑这件事' : '给想做的事，一个位置'} subtitle="先记下来，再找到适合它的节奏。" onClose={onClose}
+  return <><Dialog visible={visible && !deleting && !overlapRequest} title={task ? '编辑这件事' : '给想做的事，一个位置'} subtitle="先记下来，再找到适合它的节奏。" onClose={onClose}
     footer={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
       {task && <Button title="删除" variant="danger" small onPress={() => setDeleting(true)} />}<View style={{ flex: 1 }} />
-      <Button title="取消" variant="ghost" onPress={onClose} /><Button title={task ? '保存修改' : '添加任务'} icon="check" onPress={save} />
+      <Button title="取消" variant="ghost" onPress={onClose} /><Button title={task ? '保存修改' : '添加任务'} icon="check" onPress={() => save()} />
     </View>}>
     <FieldTitle>想做什么</FieldTitle><TextInput accessibilityLabel="任务名称" placeholder="例如：把产品方案写出第一稿" placeholderTextColor={c.faint} value={title} onChangeText={setTitle} maxLength={100} style={[styles.input, { fontSize: 16 }]} autoFocus />
     <FieldTitle>补充一点细节</FieldTitle><TextInput accessibilityLabel="任务备注" placeholder="什么算完成？第一步可以做什么？" placeholderTextColor={c.faint} value={notes} onChangeText={setNotes} multiline maxLength={1500} style={[styles.input, { minHeight: 72, textAlignVertical: 'top' }]} />
@@ -81,6 +87,7 @@ function TaskEditorForm({ visible, task, target = 'today', initialDate, onClose 
     <View style={[styles.chips, { marginTop: 9 }]}><Chip title="今天到期" selected={deadline === today} onPress={() => setDeadline(today)} /><Chip title="明天到期" selected={deadline === nextDay(today)} onPress={() => setDeadline(nextDay(today))} /><Chip title="无截止日期" selected={!deadline} onPress={() => setDeadline('')} /></View>
     {error ? <Label style={{ color: c.red, marginTop: 18, fontSize: 12 }} accessibilityRole="alert">{error}</Label> : null}
   </Dialog>
+    <Confirm visible={visible && !!overlapRequest} title="同时安排这几件事？" description={`「${overlapRequest?.task.title ?? ''}」将安排到 ${overlapRequest?.task.date ?? ''} ${overlapRequest ? `${clock(overlapRequest.task.start!)}–${clock(overlapRequest.task.start! + overlapRequest.task.duration)}` : ''}，与${overlapRequest?.conflicts.map(item => `「${item.title}」`).join('、') ?? ''}时间重叠。确认后保留这些安排；自动排程仍会避开已占用的时段。`} action="确认重叠安排" onClose={() => setOverlapRequest(null)} onConfirm={() => save(overlapRequest?.key)} />
     <Confirm visible={visible && deleting} title="删除这件事？" description={`「${task?.title ?? ''}」将从日程中移除。`} action="确认删除" onClose={() => setDeleting(false)} onConfirm={() => { mutateTasks(tasks => tasks.filter(item => item.id !== task?.id)); notify('任务已删除。'); setDeleting(false); onClose(); }} />
   </>;
 }

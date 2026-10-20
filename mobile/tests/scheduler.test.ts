@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createPlan, freeMinutes, mergeIntervals, scheduleTask } from '../src/scheduler.ts';
 import { nextDay } from '../src/utils.ts';
+import { overlaps } from '../src/time.ts';
 import type { RescueRequest, Settings, Task } from '../src/types.ts';
 
 const today = '2026-10-19';
@@ -158,4 +159,48 @@ test('many mixed days preserve deadlines, fixed blocks, buffers and unique task 
     assert.ok(plan.tasks.every(t => t.completed === false));
     assert.ok(plan.tasks.filter(t => t.date === today && !t.fixed).every(t => t.start! + t.duration <= settings.dayEnd));
   }
+});
+
+test('all automatic modes preserve existing overlapping fixed choices and place other work outside their union', () => {
+  const source = [task('fixed-a', { fixed: true, duration: 90 }), task('fixed-b', { fixed: true, start: 870, duration: 90 }),
+    task('auto-a', { duration: 30 }), task('auto-b', { duration: 30 })];
+  const before = structuredClone(source);
+  for (const mode of ['balanced', 'boundary', 'focus'] as const) {
+    const plan = createPlan(source, settings, request({ reason: 'rebalance', mode }));
+    assert.equal(plan.valid, true);
+    assert.deepEqual(plan.tasks.slice(0, 2), source.slice(0, 2));
+    assert.equal(overlaps(plan.tasks[0], plan.tasks[1]), true);
+    for (const automatic of plan.tasks.filter(item => !item.fixed && item.start !== null)) {
+      assert.ok(automatic.start! >= 960);
+      assert.equal(plan.tasks.some(other => other.id !== automatic.id && overlaps(automatic, other)), false);
+    }
+    assert.ok(plan.warnings.some(message => message.includes('保留已有固定事项')));
+  }
+  assert.deepEqual(source, before);
+});
+
+test('automatically scheduling a new inbox item avoids manually overlapping fixed, flexible and completed events', () => {
+  const source = [task('fixed', { fixed: true, duration: 60 }), task('flexible', { start: 870, duration: 90 }),
+    task('done', { completed: true, start: 930, duration: 60 }), task('inbox', { date: null, start: null })];
+  const result = scheduleTask(source, 'inbox', settings, today, 840)!;
+  const scheduled = result.find(item => item.id === 'inbox')!;
+  assert.equal(scheduled.start, 1000);
+  assert.equal(result.some(other => other.id !== scheduled.id && overlaps(scheduled, other)), false);
+  assert.deepEqual(result.slice(0, 3), source.slice(0, 3));
+});
+
+test('automatic rescue separates manually overlapping flexible items instead of carrying their overlap into a new plan', () => {
+  const source = [task('a', { duration: 45 }), task('b', { duration: 45 }), task('fixed', { fixed: true, start: 960 })];
+  const plan = createPlan(source, settings, request({ reason: 'rebalance' }));
+  assert.equal(plan.valid, true);
+  noOverlaps(plan.tasks);
+  assert.equal(plan.tasks[2].start, 960);
+});
+
+test('automatic interruption insertion cannot create an overlap with completed time blocks', () => {
+  const completed = task('done', { completed: true, start: 840, duration: 60 });
+  const plan = createPlan([completed], settings, request());
+  assert.equal(plan.valid, false);
+  assert.deepEqual(plan.tasks.find(item => item.id === completed.id), completed);
+  assert.ok(plan.warnings.some(message => message.includes('已完成事项')));
 });

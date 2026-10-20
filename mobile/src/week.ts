@@ -4,8 +4,14 @@ import { finishesByDeadline, normalizePosition, overlaps } from './time.ts';
 
 export type TaskPosition = { date: string; start: number };
 export type MoveResult =
-  | { ok: false; error: string; confirmation?: 'outside-preferences' }
-  | { ok: true; tasks: Task[]; change: Change | null; warnings: string[] };
+  | { ok: false; error: string; confirmation?: 'outside-preferences' | 'overlap' }
+  | { ok: true; tasks: Task[]; change: Change | null; warnings: string[]; conflicts: Task[] };
+
+// Consent applies to this exact placement and the overlapping events visible in its confirmation.
+export function overlapConsentKey(task: Task, conflicts: Task[]): string {
+  return JSON.stringify([task.id, task.date, task.start, task.duration, task.deadline, task.fixed,
+    conflicts.slice().sort((a, b) => a.id.localeCompare(b.id)).map(item => [item.id, item.date, item.start, item.duration])]);
+}
 
 export function addDays(key: string, amount: number): string {
   const date = new Date(`${key}T12:00:00`);
@@ -46,7 +52,7 @@ export function outsidePreferredHours(start: number, duration: number, settings:
 }
 
 export function moveTaskTo(tasks: Task[], taskId: string, position: TaskPosition,
-  settings: Settings, today: string, allowFixed = false, allowOutsidePreferences = false): MoveResult {
+  settings: Settings, today: string, allowFixed = false, allowOutsidePreferences = false, allowOverlap = false): MoveResult {
   const task = tasks.find(item => item.id === taskId);
   if (!task) return { ok: false, error: '这项任务已不存在，请重新选择。' };
   if (task.completed) return { ok: false, error: '已完成的任务不参与拖动，请先在今天或收集箱恢复为未完成。' };
@@ -56,14 +62,14 @@ export function moveTaskTo(tasks: Task[], taskId: string, position: TaskPosition
     return { ok: false, error: '这个位置无法容纳整项任务，请选择当天范围内的有效时间。' };
   }
   if (task.date === position.date && task.start === position.start) {
-    return { ok: true, tasks, change: null, warnings: [] };
+    return { ok: true, tasks, change: null, warnings: [], conflicts: [] };
   }
   if (!finishesByDeadline(position.date, position.start, task.duration, task.deadline)) {
     return { ok: false, error: `「${task.title}」最晚 ${task.deadline} 到期，不能移到截止日期之后。` };
   }
-  const conflict = tasks.find(item => item.id !== taskId && overlaps({ ...task, ...position }, item));
-  if (conflict) {
-    return { ok: false, error: `与「${conflict.title}」${clock(conflict.start!)}–${clock(conflict.start! + conflict.duration)} 重叠，已保留原位置。` };
+  const conflicts = tasks.filter(item => item.id !== taskId && overlaps({ ...task, ...position }, item));
+  if (conflicts.length && !allowOverlap) {
+    return { ok: false, confirmation: 'overlap', error: `与${conflicts.map(item => `「${item.title}」`).join('、')}时间重叠，需要确认本次安排。` };
   }
   const outside = outsidePreferredHours(position.start, task.duration, settings);
   if (outside && !allowOutsidePreferences) {
@@ -71,13 +77,14 @@ export function moveTaskTo(tasks: Task[], taskId: string, position: TaskPosition
   }
   const updated = { ...task, date: position.date, start: position.start };
   const warnings: string[] = [];
+  if (conflicts.length) warnings.push(`经确认与${conflicts.map(item => `「${item.title}」`).join('、')}同时安排`);
   if (outside) {
     warnings.push('经确认安排在偏好时段之外');
   }
   if (position.date < today) warnings.push('安排在过去的日期，仍保留未完成状态');
-  return { ok: true, tasks: tasks.map(item => item.id === taskId ? updated : item), warnings,
+  return { ok: true, tasks: tasks.map(item => item.id === taskId ? updated : item), warnings, conflicts,
     change: { taskId, title: task.title, from: taskPosition(task, today), to: taskPosition(updated, today),
-      reason: task.fixed ? '经确认移动固定事项，移动后保持固定' : '在周览中手动调整时间' } };
+      reason: `${task.fixed ? '经确认移动固定事项，移动后保持固定' : '在周览中手动调整时间'}${conflicts.length ? '；经确认保留重叠安排' : ''}` } };
 }
 
 export type PlacedTask = { task: Task; lane: number; lanes: number };

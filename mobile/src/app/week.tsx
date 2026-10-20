@@ -4,7 +4,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { usePlanning } from '../store';
 import { colors as c } from '../theme';
 import { clock, durationText } from '../utils';
-import { addDays, layoutDay, moveTaskTo, outsidePreferredHours, positionFromPoint, validDate, weekDates, type TaskPosition } from '../week';
+import { addDays, layoutDay, moveTaskTo, outsidePreferredHours, overlapConsentKey, positionFromPoint, validDate, weekDates, type TaskPosition } from '../week';
 import type { Task } from '../types';
 import { calendarSegments, nonPreferredRanges, type CalendarSegment } from '../time';
 import { Button, Chip, Confirm, Dialog, FieldTitle, Icon, Label } from '../components/ui';
@@ -19,7 +19,8 @@ const endMinute = 1440;
 const DAYS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 type Rect = { x: number; y: number; width: number; height: number };
 type DragSession = { task: Task; grabOffset: number; x: number; y: number; allowedFixed: boolean; rollover: boolean };
-type DragPreview = { task: Task; position: TaskPosition | null; error: string | null };
+type DragPreview = { task: Task; position: TaskPosition | null; error: string | null; hasOverlap: boolean };
+type MoveRequest = { task: Task; position: TaskPosition; allowFixed: boolean; confirmFixed: boolean; conflicts: Task[]; consentKey: string };
 
 export default function Week() {
   const { data, today, now, applyPlan, notify } = usePlanning();
@@ -36,7 +37,7 @@ export default function Week() {
   const [unlocked, setUnlocked] = useState<string | null>(null);
   const [unlockRequest, setUnlockRequest] = useState<Task | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
-  const [moveRequest, setMoveRequest] = useState<{ task: Task; position: TaskPosition; allowFixed: boolean; confirmFixed: boolean } | null>(null);
+  const [moveRequest, setMoveRequest] = useState<MoveRequest | null>(null);
   const [editor, setEditor] = useState<{ task?: Task } | null>(null);
   const board = useRef<React.ComponentRef<typeof View>>(null);
   const horizontal = useRef<React.ComponentRef<typeof ScrollView>>(null);
@@ -85,7 +86,8 @@ export default function Week() {
       dayWidth, dates, startMinute, endMinute, pixelsPerMinute: pixelsPerMinute, grabOffset: active.grabOffset, rollover: active.rollover,
     }) : null;
     const validation = position ? moveTaskTo(data.tasks, active.task.id, position, data.settings, today, active.allowedFixed) : null;
-    const preview = { task: active.task, position, error: validation && !validation.ok && !validation.confirmation ? validation.error : null };
+    const preview = { task: active.task, position, error: validation && !validation.ok && !validation.confirmation ? validation.error : null,
+      hasOverlap: !!validation && !validation.ok && validation.confirmation === 'overlap' };
     latestPreview.current = preview;
     setDrag(preview);
   }, [data.tasks, data.settings, today, dayWidth, dates, pixelsPerMinute]);
@@ -112,8 +114,8 @@ export default function Week() {
     });
   }
 
-  function commitMove(task: Task, position: TaskPosition, allowFixed: boolean, allowOutsidePreferences = false): string | null {
-    const result = moveTaskTo(data.tasks, task.id, position, data.settings, today, allowFixed, allowOutsidePreferences);
+  function commitMove(task: Task, position: TaskPosition, allowFixed: boolean, allowOutsidePreferences = false, allowOverlap = false): string | null {
+    const result = moveTaskTo(data.tasks, task.id, position, data.settings, today, allowFixed, allowOutsidePreferences, allowOverlap);
     if (!result.ok) return result.error;
     if (!result.change) { notify('仍在原来的位置，没有修改日程。'); return null; }
     applyPlan({ tasks: result.tasks, changes: [result.change], warnings: result.warnings,
@@ -123,14 +125,31 @@ export default function Week() {
   }
 
   function requestMove(task: Task, position: TaskPosition, allowFixed: boolean, confirmFixed = false): string | null {
-    // Validate conflicts first, then ask before applying an exception to the user's preferences.
-    const result = moveTaskTo(data.tasks, task.id, position, data.settings, today, allowFixed, true);
+    // Preview exceptions without applying them; consent belongs to this exact manual placement.
+    const result = moveTaskTo(data.tasks, task.id, position, data.settings, today, allowFixed, true, true);
     if (!result.ok) return result.error;
-    if (result.change && (confirmFixed || outsidePreferredHours(position.start, task.duration, data.settings))) {
-      setMoveRequest({ task, position, allowFixed, confirmFixed });
+    if (result.change && (confirmFixed || result.conflicts.length || outsidePreferredHours(position.start, task.duration, data.settings))) {
+      setMoveRequest({ task, position, allowFixed, confirmFixed, conflicts: result.conflicts,
+        consentKey: overlapConsentKey(result.tasks.find(item => item.id === task.id)!, result.conflicts) });
       return null;
     }
     return commitMove(task, position, allowFixed);
+  }
+
+  function confirmMove() {
+    if (!moveRequest) return;
+    const { task, position, allowFixed } = moveRequest;
+    const current = moveTaskTo(data.tasks, task.id, position, data.settings, today, allowFixed, true, true);
+    if (!current.ok) { notify(current.error); setMoveRequest(null); setUnlocked(null); return; }
+    const updated = current.tasks.find(item => item.id === task.id)!;
+    const consentKey = overlapConsentKey(updated, current.conflicts);
+    if (current.change && consentKey !== moveRequest.consentKey) {
+      setMoveRequest({ ...moveRequest, task: data.tasks.find(item => item.id === task.id)!, conflicts: current.conflicts, consentKey });
+      notify('日程已变化，请重新确认这次安排。'); return;
+    }
+    const error = commitMove(task, position, allowFixed, true, moveRequest.conflicts.length > 0);
+    if (error) notify(error);
+    setMoveRequest(null); setUnlocked(null);
   }
 
   function drop() {
@@ -272,7 +291,7 @@ export default function Week() {
         <View style={{ maxWidth: 480, borderRadius: 11, paddingHorizontal: 13, paddingVertical: 10, backgroundColor: drag?.error ? '#F9E8EB' : unlockedTask ? '#FFF3DF' : '#EEE7FA', flexDirection: 'row', alignItems: 'center', gap: 8, boxShadow: '0px 3px 16px rgba(40,25,60,0.10)' }}>
           <Icon name={drag?.error ? 'alert-circle' : unlockedTask ? 'unlock' : 'move'} size={14} color={drag?.error ? c.red : unlockedTask ? c.orange : c.purple} />
           <Label numberOfLines={2} accessibilityLiveRegion="polite" style={{ flexShrink: 1, fontSize: 11, lineHeight: 18, color: drag?.error ? c.red : unlockedTask ? c.orange : c.purpleDark }}>
-            {drag ? drag.error ?? (drag.position ? `${DAYS[dates.indexOf(drag.position.date)]} ${clock(drag.position.start)}–${clock(drag.position.start + drag.task.duration)}${outsidePreferredHours(drag.position.start, drag.task.duration, data.settings) ? ' · 非偏好时段，放下后需确认' : ''}` : '拖进网格即可安排，网格外松手取消') : `「${unlockedTask?.title}」已解锁一次拖动`}
+            {drag ? drag.error ?? (drag.position ? `${DAYS[dates.indexOf(drag.position.date)]} ${clock(drag.position.start)}–${clock(drag.position.start + drag.task.duration)}${drag.hasOverlap ? ' · 时间重叠，放下后需确认' : ''}${outsidePreferredHours(drag.position.start, drag.task.duration, data.settings) ? ' · 非偏好时段，放下后需确认' : ''}` : '拖进网格即可安排，网格外松手取消') : `「${unlockedTask?.title}」已解锁一次拖动`}
           </Label>
           {unlockedTask && !drag && <Button title="取消" variant="ghost" small onPress={() => setUnlocked(null)} />}
         </View>
@@ -289,6 +308,7 @@ export default function Week() {
       <Label muted style={{ fontSize: 11, marginTop: 18 }}>时间轴保留 00:00–24:00，上下滑动查看。浅灰区域在偏好时段之外，手动安排到这些时间会先请你确认；自动安排仍按偏好设置执行。</Label>
       <Label muted style={{ fontSize: 11, marginTop: 9 }}>自适应模式按屏幕可用高度调整时间行高，七天列宽随屏幕变化。大卡片适合仔细调整，可上下、左右滚动。拖到边缘时表格会自动滚动，放下后按 15 分钟吸附。</Label>
       <Label muted style={{ fontSize: 11, marginTop: 9 }}>固定事项默认锁定，确认解锁后仅可移动一次。所有有效移动都可以在回顾中撤销。</Label>
+      <Label muted style={{ fontSize: 11, marginTop: 9 }}>手动安排可在确认后重叠显示；自动排程始终避开已占用的时间。</Label>
       <Button title="回到本周" variant="secondary" small onPress={() => { setAnchor(today); setUnlocked(null); setShowOptions(false); }} style={{ alignSelf: 'flex-start', marginTop: 18 }} />
     </Dialog>
 
@@ -297,15 +317,9 @@ export default function Week() {
     <Confirm visible={!!unlockRequest} title="允许这次移动固定事项？"
       description={`「${unlockRequest?.title ?? ''}」默认锁定。确认后只允许一次拖动；无论移动成功或发生冲突，放下后都会重新锁定，固定属性保持不变。`}
       action="确认，解锁一次拖动" onClose={() => setUnlockRequest(null)} onConfirm={() => { setUnlocked(unlockRequest!.id); setUnlockRequest(null); notify('已解锁一次拖动，放下后会重新锁定。'); }} />
-    <Confirm visible={!!moveRequest} title={moveRequest?.confirmFixed ? '确认修改固定事项的时间？' : '安排到非偏好时段？'}
-      description={`「${moveRequest?.task.title ?? ''}」将安排到 ${moveRequest?.position.date ?? ''} ${moveRequest ? `${clock(moveRequest.position.start)}–${clock(moveRequest.position.start + moveRequest.task.duration)}` : ''}。${moveRequest && outsidePreferredHours(moveRequest.position.start, moveRequest.task.duration, data.settings) ? `这超出了你的偏好时段 ${clock(data.settings.dayStart)}–${clock(data.settings.dayEnd)}。确认只对这次手动调整生效，自动安排仍遵循原偏好。` : ''}${moveRequest?.task.fixed ? '保存后仍是固定事项，并保持锁定。' : ''}取消会保留原位置。`}
-      action={moveRequest?.confirmFixed ? '确认移动固定事项' : '仍然安排到这里'} onClose={() => setMoveRequest(null)} onConfirm={() => {
-        if (moveRequest) {
-          const error = commitMove(moveRequest.task, moveRequest.position, moveRequest.allowFixed, true);
-          if (error) notify(error);
-        }
-        setMoveRequest(null); setUnlocked(null);
-      }} />
+    <Confirm visible={!!moveRequest} title={moveRequest?.conflicts.length ? '同时安排这几件事？' : moveRequest?.confirmFixed ? '确认修改固定事项的时间？' : moveRequest && outsidePreferredHours(moveRequest.position.start, moveRequest.task.duration, data.settings) ? '安排到非偏好时段？' : '确认调整时间？'}
+      description={`「${moveRequest?.task.title ?? ''}」将安排到 ${moveRequest?.position.date ?? ''} ${moveRequest ? `${clock(moveRequest.position.start)}–${clock(moveRequest.position.start + moveRequest.task.duration)}` : ''}。${moveRequest?.conflicts.length ? `与${moveRequest.conflicts.map(item => `「${item.title}」`).join('、')}时间重叠。确认后保留这些安排，自动排程仍避开已占用的时段。` : ''}${moveRequest && outsidePreferredHours(moveRequest.position.start, moveRequest.task.duration, data.settings) ? `这超出了你的偏好时段 ${clock(data.settings.dayStart)}–${clock(data.settings.dayEnd)}。确认只对这次手动调整生效，自动安排仍遵循原偏好。` : ''}${moveRequest?.task.fixed ? '保存后仍是固定事项，并保持锁定。' : ''}取消会保留原位置。`}
+      action={moveRequest?.conflicts.length ? '确认重叠安排' : moveRequest?.confirmFixed ? '确认移动固定事项' : '仍然安排到这里'} onClose={() => setMoveRequest(null)} onConfirm={confirmMove} />
     <TaskEditor visible={!!editor} task={editor?.task} initialDate={dates.includes(today) ? today : dates[0]} onClose={() => setEditor(null)} />
   </View>;
 }

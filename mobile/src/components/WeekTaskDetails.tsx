@@ -39,7 +39,7 @@ export function WeekTaskDetails({ task, fallbackDate, fallbackStart, onClose, on
     </View>}
     <FieldTitle>任务日期</FieldTitle><TextInput accessibilityLabel="周览任务日期" value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" style={input} editable={!task.completed} />
     <FieldTitle>开始时间</FieldTitle><TextInput accessibilityLabel="周览开始时间" value={time} onChangeText={setTime} placeholder="14:30" style={input} editable={!task.completed} />
-    <Label muted style={{ fontSize: 11, marginTop: 10 }}>时长保持 {durationText(task.duration)}。重叠或超出截止日期的调整不会保存。</Label>
+    <Label muted style={{ fontSize: 11, marginTop: 10 }}>时长保持 {durationText(task.duration)}。时间重叠时确认后可保存，不能超出截止日期。</Label>
     {error && <Label accessibilityRole="alert" style={{ fontSize: 12, color: c.red, marginTop: 15 }}>{error}</Label>}
   </Dialog>;
 }
