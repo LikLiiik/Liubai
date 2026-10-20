@@ -6,6 +6,8 @@ import { clock } from '../utils';
 import { enableNotifications } from '../notifications';
 import { DEFAULT_FREE_MINUTES, findInboxSuggestion, localMoment } from '../inboxReminders';
 import { InboxSuggestionDialog } from '../components/InboxSuggestionDialog';
+import { UpdateCard } from '../components/UpdateCard';
+import { appVersion } from '../appVersion';
 import { defaultSettings } from '../seed';
 import { useRouter } from 'expo-router';
 import { parseTime, parsePreferenceEnd, preferenceTime } from '../time';
@@ -105,6 +107,7 @@ export default function Me() {
       <Button title="导出数据备份" icon="download" variant="secondary" small onPress={exportData} style={{ alignSelf: 'flex-start', marginTop: 17 }} />
     </Card>
     <Card style={{ marginBottom: 25 }}><Label style={{ fontWeight: '600', fontSize: 14 }}>重新开始</Label><Label muted style={{ fontSize: 11, marginTop: 9 }}>载入示例或清空任务都会替换当前数据，请先导出需要保留的记录。</Label><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9, marginTop: 17 }}><Button title="重新体验示例" icon="refresh-cw" variant="secondary" small onPress={() => setConfirm('demo')} /><Button title="清空，开始我的一天" icon="sunrise" variant="ghost" small onPress={() => setConfirm('empty')} /></View></Card>
-    <Label muted style={{ textAlign: 'center', fontSize: 10 }}>留白 0.3.0 · 给今天留一点余地</Label>
+    <UpdateCard />
+    <Label muted style={{ textAlign: 'center', fontSize: 10 }}>留白 {appVersion} · 给今天留一点余地</Label>
   </View></ScrollView><Confirm visible={!!confirm} title={confirm === 'demo' ? '重新载入示例日程？' : '清空并重新开始？'} description="当前所有任务和调整记录都将被替换。请确认已经导出需要保留的数据。" action={confirm === 'demo' ? '载入示例' : '确认清空'} onClose={() => setConfirm(null)} onConfirm={() => { reset(confirm === 'demo'); setStart(clock(defaultSettings.dayStart)); setEnd(preferenceTime(defaultSettings.dayEnd)); setBuffer(String(defaultSettings.buffer)); setError(''); setConfirm(null); }} /><InboxSuggestionDialog taskId={previewTask} preview onClose={() => setPreviewTask(null)} /></>;
 }
