@@ -4,6 +4,7 @@ import type { Task } from '../types';
 import { clock } from '../utils';
 import { Icon, Label } from './ui';
 import { isQuick } from '../quick';
+import { ImportantButton } from './ImportantButton';
 
 type Props = {
   task: Task;
@@ -16,6 +17,7 @@ type Props = {
   unlocked: boolean;
   dragging: boolean;
   onOpen: () => void;
+  onToggleImportant: () => void;
   onUnlock: () => void;
   onBegin: (x: number, y: number) => void;
   onMove: (x: number, y: number) => void;
@@ -70,9 +72,10 @@ export class WeekTaskCard extends React.PureComponent<Props, { highlight: boolea
     : task.category === 'life' ? ['#FAF1E5', '#DAC09B', '#9C7950']
     : ['#EEE9FA', '#BCAADF', '#6D55A3'];
   const short = !quick && !tray && (availableHeight ?? task.duration * 64 / 60) < 52;
-  const textLines = tray ? 2 : Math.max(1, Math.min(4, Math.floor(((availableHeight ?? 90) - (short ? 3 : 24)) / (small ? 12 : 16))));
-  return <View {...this.responder.panHandlers} style={style}>
-    <Pressable
+  const starSize = Math.min(small ? 22 : 28, Math.max(10, (availableHeight ?? 90) - 2));
+  const textLines = tray ? 2 : Math.max(1, Math.min(4, Math.floor(((availableHeight ?? 90) - (short ? 3 : quick ? 24 : 24 + starSize)) / (small ? 12 : 16))));
+  return <View style={style}>
+    <View {...this.responder.panHandlers} style={{ flex: 1 }}><Pressable
       accessibilityRole="button"
       accessibilityLabel={`${quick ? '顺手小事' : locked ? '固定事项（已锁定）' : '任务'}：${task.title}${task.start !== null ? `，${clock(task.start)}` : '，待安排'}`}
       testID={`week-task-${task.id}`}
@@ -98,13 +101,15 @@ export class WeekTaskCard extends React.PureComponent<Props, { highlight: boolea
             {tray ? `${task.duration} 分钟` : `${continuation ? '续 · ' : ''}${clock(displayStart ?? task.start!)}`}
           </Label>
         </View>}
-        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 2 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 2, paddingRight: !quick && (short || tray) ? starSize - 2 : 0 }}>
           {short && task.fixed && <Icon name={unlocked ? 'unlock' : 'lock'} size={small ? 8 : 10} color={palette[2]} />}
           <Label numberOfLines={quick ? 1 : textLines} style={{ flex: 1, fontSize: small ? 9 : 11, lineHeight: small ? 12 : 16, color: palette[2], fontWeight: '500', textDecorationLine: task.completed ? 'line-through' : 'none' }}>{short && continuation ? '续 · ' : ''}{task.title}</Label>
         </View>
-        {tray && task.date && <Label style={{ fontSize: 9, color: palette[2], lineHeight: 15 }}>{task.date.slice(5).replace('-', '/')} · 待安排</Label>}
+        {tray && task.date && <Label style={{ fontSize: 9, color: palette[2], lineHeight: 15, paddingRight: starSize }}>{task.date.slice(5).replace('-', '/')} · 待安排</Label>}
       </View>
-    </Pressable>
+    </Pressable></View>
+    {!quick && <ImportantButton title={task.title} important={task.important} onPress={this.props.onToggleImportant} size={starSize} disabled={dragging}
+      style={{ position: 'absolute', bottom: 1, right: 1 }} />}
   </View>;
   }
 }

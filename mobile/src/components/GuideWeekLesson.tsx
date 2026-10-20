@@ -69,12 +69,13 @@ export function WeekGuideLesson({ onDraggingChange }: { onDraggingChange: (dragg
       {[0, 1, 2].map(column => <View key={column} pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, left: GUTTER + column * dayWidth, borderLeftWidth: 1, borderColor: c.border }} />)}
       <WeekTaskCard task={task} small={false} unlocked={false} dragging={!!drag} availableHeight={task.duration * SCALE - 3}
         style={{ position: 'absolute', top: (task.start! - START) * SCALE + 1, left: GUTTER + DATES.indexOf(task.date!) * dayWidth + 3, width: dayWidth - 6, height: task.duration * SCALE - 3 }}
+        onToggleImportant={() => setTask(value => ({ ...value, important: !value.important }))}
         onBegin={begin} onMove={update} onDrop={drop} onCancel={cancel} onOpen={() => {}} onUnlock={() => {}} />
       {drag?.position && <View pointerEvents="none" style={{ position: 'absolute', top: (drag.position.start - START) * SCALE + 1, left: GUTTER + DATES.indexOf(drag.position.date) * dayWidth + 3,
         width: dayWidth - 6, height: task.duration * SCALE - 3, borderWidth: 2, borderColor: c.purple, borderRadius: 6, backgroundColor: c.lavender, padding: 4 }}>
         <Label style={{ color: c.purpleDark, fontSize: 10 }}>{clock(drag.position.start)}</Label><Label style={{ color: c.purpleDark, fontSize: 11 }}>{task.title}</Label>
       </View>}
     </View>
-    <Button title="还原示例" variant="ghost" small disabled={!!drag || !moved} onPress={() => { setTask(INITIAL); setMoved(false); }} style={{ alignSelf: 'flex-start', marginTop: 8 }} />
+    <Button title="还原示例" variant="ghost" small disabled={!!drag || !moved && !task.important} onPress={() => { setTask(INITIAL); setMoved(false); }} style={{ alignSelf: 'flex-start', marginTop: 8 }} />
   </View>;
 }

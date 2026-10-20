@@ -11,6 +11,13 @@ test('the current tutorial has stable distinct steps and covers every interactiv
   assert.ok(GUIDE_STEPS.every(step => step.introduced > 0 && step.introduced <= GUIDE_REVISION));
 });
 
+test('v10 users start at the direct-star week lesson without losing tutorial history', () => {
+  const previous = { ...freshGuideProgress(), revision: 10, completedRevision: 10, deferredRevision: 10 };
+  assert.equal(guideStartStep(previous), 'week');
+  assert.equal(visitGuideStep(previous, 'week').completedRevision, 10);
+  assert.ok(GUIDE_STEPS.find(step => step.id === 'week')!.tips.join('').includes('星标'));
+});
+
 test('a fresh installation opens the tutorial and an interrupted session resumes at its saved step', () => {
   const fresh = parseGuideProgress(null);
   assert.equal(shouldShowGuide(fresh), true);

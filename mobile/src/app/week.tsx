@@ -24,7 +24,7 @@ type DragPreview = { task: Task; position: TaskPosition | null; error: string | 
 type MoveRequest = { task: Task; position: TaskPosition; allowFixed: boolean; confirmFixed: boolean; conflicts: Task[]; consentKey: string };
 
 export default function Week() {
-  const { data, today, now, applyPlan, notify } = usePlanning();
+  const { data, today, now, applyPlan, notify, toggleImportant } = usePlanning();
   const params = useLocalSearchParams<{ date?: string }>();
   const initialDate = typeof params.date === 'string' && validDate(params.date) ? params.date : today;
   const { width } = useWindowDimensions();
@@ -241,7 +241,7 @@ export default function Week() {
       <ScrollView horizontal scrollEnabled={!dragging} showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
         {pending.map(task => <WeekTaskCard key={task.id} task={task} small={false} tray unlocked={unlocked === task.id} dragging={drag?.task.id === task.id}
           style={{ width: compact ? 160 : 195, height: task.date ? 76 : 61 }} onOpen={() => setSelected(task.id)} onUnlock={() => requestUnlock(task)}
-          onBegin={(x, y) => beginDrag(task, x, y)} onMove={updatePreview} onDrop={drop} onCancel={cancelDrag} />)}
+          onToggleImportant={() => toggleImportant(task.id)} onBegin={(x, y) => beginDrag(task, x, y)} onMove={updatePreview} onDrop={drop} onCancel={cancelDrag} />)}
       </ScrollView>
     </View>}
 
@@ -276,7 +276,7 @@ export default function Week() {
                 style={{ position: 'absolute', top: (segment.start - startMinute) * pixelsPerMinute + 2,
                   left: GUTTER + dayIndex * dayWidth + lane * (dayWidth - 4) / lanes + 2,
                   width: (dayWidth - 4) / lanes - 1, height: cardHeight, zIndex: drag?.task.id === task.id ? 2 : 1 }}
-                onOpen={() => setSelected(task.id)} onUnlock={() => requestUnlock(task)} onBegin={(x, y) => beginDrag(task, x, y, segment)} onMove={updatePreview} onDrop={drop} onCancel={cancelDrag} />;
+                onToggleImportant={() => toggleImportant(task.id)} onOpen={() => setSelected(task.id)} onUnlock={() => requestUnlock(task)} onBegin={(x, y) => beginDrag(task, x, y, segment)} onMove={updatePreview} onDrop={drop} onCancel={cancelDrag} />;
               }))}
               {dates.includes(today) && now >= startMinute && now < endMinute && <View pointerEvents="none" style={{ position: 'absolute', top: (now - startMinute) * pixelsPerMinute, left: GUTTER + dates.indexOf(today) * dayWidth, width: dayWidth, height: 1, backgroundColor: '#B292D6', zIndex: 3 }}><View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: '#A383C8', marginTop: -2 }} /></View>}
               {drag?.position && calendarSegments({ ...drag.task, ...drag.position }).filter(segment => inWeek(segment.date)).map(segment => <View key={segment.date} pointerEvents="none" testID="week-drag-preview" style={{ position: 'absolute', top: (segment.start - startMinute) * pixelsPerMinute,

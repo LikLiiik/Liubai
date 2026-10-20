@@ -29,6 +29,7 @@ type Store = {
   undoPlan: () => void;
   updateSettings: (settings: Settings) => void;
   setNickname: (name: string) => void;
+  toggleImportant: (id: string) => void;
   addCategory: (name: string) => CategoryAddResult;
   setCompleted: (id: string, completed: boolean, consentKey?: string) => boolean;
   completionOffer: string | null;
@@ -209,6 +210,13 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
   const setNickname = useCallback((name: string) => {
     commit(previous => { const settings = withNickname(previous.settings, name); return settings ? { ...previous, settings } : previous; });
   }, [commit]);
+  const toggleImportant = useCallback((id: string) => {
+    commit(previous => {
+      const task = previous.tasks.find(task => task.id === id);
+      if (!task || task.kind === 'quick') return previous;
+      return { ...previous, tasks: previous.tasks.map(item => item.id === id ? { ...item, important: !item.important } : item) };
+    });
+  }, [commit]);
   const addCategory = useCallback((name: string): CategoryAddResult => {
     let result: CategoryAddResult = { error: '未能添加分类，请重试。' };
     commit(previous => {
@@ -228,7 +236,7 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
   const planning = planningContext(today, now, data.settings);
   return <Context.Provider value={{ data, loading, loadError, saveStatus, today, now,
     planningDate: planning.date, planningNow: planning.now, toast, notify, mutateTasks, applyPlan,
-    undoPlan, updateSettings, setNickname, addCategory, setCompleted, completionOffer, completionRestore, completionUndo, undoCompletion, dismissCompletionOffer, reset, reload }}>{children}</Context.Provider>;
+    undoPlan, updateSettings, setNickname, toggleImportant, addCategory, setCompleted, completionOffer, completionRestore, completionUndo, undoCompletion, dismissCompletionOffer, reset, reload }}>{children}</Context.Provider>;
 }
 
 export function usePlanning() {

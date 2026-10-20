@@ -12,9 +12,10 @@ import { TaskEditor } from '../components/TaskEditor';
 import { RescueDialog } from '../components/RescueDialog';
 import { isQuick } from '../quick';
 import { homeGreeting } from '../profile';
+import { ImportantButton } from '../components/ImportantButton';
 
 export default function Today() {
-  const { data, planningDate: today, planningNow: now, today: calendarToday, now: realNow, setCompleted } = usePlanning();
+  const { data, planningDate: today, planningNow: now, today: calendarToday, now: realNow, setCompleted, toggleImportant } = usePlanning();
   const { width } = useWindowDimensions();
   const desktop = width >= 1200;
   const compact = width < 600;
@@ -80,19 +81,19 @@ export default function Today() {
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}><View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}><Label style={{ fontSize: 16, fontWeight: '600' }}>今日时间轴</Label><Label muted style={{ fontSize: 10 }}>{pending.length} 项待完成</Label></View><View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}><View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: c.purple }} /><Label style={{ fontSize: 10, color: c.purple }}>{data.demo ? '模拟' : '现在'} {clock(now)}</Label></View></View>
 
           {!compact && done.length > 0 && <><Pressable accessibilityRole="button" accessibilityLabel={showDone ? '收起已完成任务' : '展开已完成任务'} onPress={() => setShowDone(!showDone)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingLeft: 62, marginBottom: 12 }}><Icon name="check-circle" size={14} color={c.green} /><Label muted style={{ fontSize: 11 }}>已完成 {done.length} 件事，做得很好</Label><Icon name={showDone ? 'chevron-up' : 'chevron-down'} size={12} /></Pressable>
-            {showDone && done.map(task => <TimelineTask key={task.id} task={timelineTask(task)} now={now} onEdit={() => setEditor({ task })} onToggle={() => toggleTask(task)} compact={compact} />)}</>}
+            {showDone && done.map(task => <TimelineTask key={task.id} task={timelineTask(task)} now={now} onEdit={() => setEditor({ task })} onToggle={() => toggleTask(task)} onToggleImportant={() => toggleImportant(task.id)} compact={compact} />)}</>}
 
           {planned.length === 0 && unscheduled.length === 0 && <Card style={{ padding: 12 }}><EmptyState title={done.length ? '今天的安排，都完成了' : '今天还有很多可能'} description={done.length ? '留一点时间给自己。明天的事，可以明天再说。' : '先放进一件重要的小事，其余的慢慢来。'} action="添加第一件事" onPress={() => setEditor({})} /></Card>}
           {planned.map((task, index) => {
             const next = planned[index + 1];
             const gap = next && !isQuick(task) && !isQuick(next) ? relativeStart(next, today)! - relativeStart(task, today)! - task.duration : 0;
-            return <View key={task.id}><TimelineTask task={timelineTask(task)} now={now} onEdit={() => setEditor({ task })} onToggle={() => toggleTask(task)} compact={compact} />
+            return <View key={task.id}><TimelineTask task={timelineTask(task)} now={now} onEdit={() => setEditor({ task })} onToggle={() => toggleTask(task)} onToggleImportant={() => toggleImportant(task.id)} compact={compact} />
               {gap >= 15 && <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', paddingLeft: compact ? 58 : 75, paddingVertical: 7, marginBottom: 8 }}><Icon name="coffee" size={12} color="#A5A0B1" /><Label style={{ color: '#A5A0B1', fontSize: 10 }}>{gap} 分钟留白 · 伸个懒腰，喘口气</Label></View>}
             </View>;
           })}
-          {unscheduled.length > 0 && <View style={{ marginTop: 16 }}><Label style={{ fontSize: 12, color: c.orange, marginBottom: 12 }}>还有 {unscheduled.length} 项待安排</Label>{unscheduled.map(task => <TimelineTask key={task.id} task={task} now={now} onEdit={() => setEditor({ task })} onToggle={() => toggleTask(task)} compact={compact} />)}<Button title="帮我重新安排" variant="secondary" small icon="shuffle" onPress={() => setRescue('rebalance')} style={{ alignSelf: 'flex-end' }} /></View>}
+          {unscheduled.length > 0 && <View style={{ marginTop: 16 }}><Label style={{ fontSize: 12, color: c.orange, marginBottom: 12 }}>还有 {unscheduled.length} 项待安排</Label>{unscheduled.map(task => <TimelineTask key={task.id} task={task} now={now} onEdit={() => setEditor({ task })} onToggle={() => toggleTask(task)} onToggleImportant={() => toggleImportant(task.id)} compact={compact} />)}<Button title="帮我重新安排" variant="secondary" small icon="shuffle" onPress={() => setRescue('rebalance')} style={{ alignSelf: 'flex-end' }} /></View>}
           {pending.length > 0 && <Pressable accessibilityRole="button" accessibilityLabel="添加一件事" onPress={() => setEditor({})} style={{ borderWidth: 1, borderStyle: 'dashed', borderColor: '#DAD6E6', borderRadius: 12, padding: 14, marginLeft: compact ? 49 : 65, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 6 }}><Icon name="plus" size={14} color={c.faint} /><Label style={{ fontSize: 11, color: c.faint }}>添加一件事</Label></Pressable>}
-          {compact && done.length > 0 && <><Button title={showDone ? `收起 ${done.length} 件已完成的事` : `看看 ${done.length} 件已完成的事`} variant="ghost" small icon="check-circle" onPress={() => setShowDone(!showDone)} style={{ marginTop: 18 }} />{showDone && done.map(task => <TimelineTask key={task.id} task={timelineTask(task)} now={now} onEdit={() => setEditor({ task })} onToggle={() => toggleTask(task)} compact />)}</>}
+          {compact && done.length > 0 && <><Button title={showDone ? `收起 ${done.length} 件已完成的事` : `看看 ${done.length} 件已完成的事`} variant="ghost" small icon="check-circle" onPress={() => setShowDone(!showDone)} style={{ marginTop: 18 }} />{showDone && done.map(task => <TimelineTask key={task.id} task={timelineTask(task)} now={now} onEdit={() => setEditor({ task })} onToggle={() => toggleTask(task)} onToggleImportant={() => toggleImportant(task.id)} compact />)}</>}
         </View>
 
         <View style={{ width: desktop ? 290 : '100%', gap: 18 }}>
@@ -105,7 +106,7 @@ export default function Today() {
 
           <Card style={{ padding: 20 }}><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 17 }}><Label style={{ fontSize: 12, fontWeight: '600' }}>今日重点</Label><Icon name="star" size={15} color={c.orange} /></View>
             {focus.length ? focus.map((task, index) => <Pressable key={task.id} accessibilityRole="button" accessibilityLabel={`编辑重点：${task.title}`} onPress={() => setEditor({ task })} style={{ flexDirection: 'row', gap: 10, marginBottom: index < focus.length - 1 ? 13 : 0 }}><View style={{ width: 20, height: 20, backgroundColor: c.lavender, borderRadius: 6, alignItems: 'center', justifyContent: 'center' }}><Label style={{ color: c.purple, fontSize: 10, lineHeight: 15 }}>{String(index + 1).padStart(2, '0')}</Label></View><View style={{ flex: 1 }}><Label style={{ fontSize: 12, lineHeight: 21 }}>{task.title}</Label><Label muted style={{ fontSize: 10 }}>{durationText(task.duration)} · {task.deadline === today ? '今天到期' : '值得优先保护'}</Label></View></Pressable>)
-              : <Label muted style={{ fontSize: 11 }}>今天最想推进什么？在任务中点亮「设为重点」。</Label>}
+              : <Label muted style={{ fontSize: 11 }}>今天最想推进什么？点亮事件卡片上的星标。</Label>}
             <View style={{ borderTopWidth: 1, borderTopColor: c.border, paddingTop: 13, marginTop: 17 }}><Label muted style={{ fontSize: 10 }}>不必做完所有事，先做好重要的事。</Label></View>
           </Card>
 
@@ -124,7 +125,7 @@ export default function Today() {
   </>;
 }
 
-function TimelineTask({ task, now, onEdit, onToggle, compact }: { task: Task; now: number; onEdit: () => void; onToggle: () => void; compact: boolean }) {
+function TimelineTask({ task, now, onEdit, onToggle, onToggleImportant, compact }: { task: Task; now: number; onEdit: () => void; onToggle: () => void; onToggleImportant: () => void; compact: boolean }) {
   const quick = isQuick(task);
   const active = !task.completed && task.start !== null && task.start <= now && task.start + task.duration > now;
   const green = task.category === 'health';
@@ -140,6 +141,7 @@ function TimelineTask({ task, now, onEdit, onToggle, compact }: { task: Task; no
           {task.fixed && <Badge title="固定事项" tone="neutral" icon="lock" />}{task.important && !task.completed && <Badge title="今日重点" icon="star" />}{task.deadline && task.deadline <= dateKey() && !task.completed && <Badge title="截止临近" tone="orange" />}{green && <Badge title="给自己充电" tone="green" />}
         </View>
       </Pressable>
+      {!quick && <ImportantButton title={task.title} important={task.important} onPress={onToggleImportant} />}
       {active && !compact && <Badge title="接下来专注" />}
     </View>
   </View>;
