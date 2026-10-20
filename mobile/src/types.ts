@@ -1,5 +1,6 @@
 export type Category = 'work' | 'life' | 'health';
 export type Priority = 'high' | 'normal' | 'low';
+export type NotificationAccess = { status: 'granted' | 'denied' | 'undetermined' | 'unsupported'; canAskAgain: boolean };
 export type ScreenName = 'today' | 'week' | 'explore' | 'inbox' | 'review' | 'me';
 
 export interface Task {

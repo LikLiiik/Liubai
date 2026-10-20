@@ -1,0 +1,60 @@
+// Keep tutorial content, revision and stable step IDs together when adding product features.
+export const GUIDE_REVISION = 1;
+export const GUIDE_STEPS = [
+  { id: 'welcome', introduced: 1, icon: 'feather', title: '给计划留一点余地', summary: '用几步认识留白，按自己的节奏开始。',
+    tips: ['先记下想做的事，再为它找到时间。', '计划有变化时，先看调整方案，再决定是否采用。', '教程可随时退出，在「我的 → 新手指引」继续或重看。'] },
+  { id: 'tasks', introduced: 1, icon: 'plus-circle', title: '先把想做的事记下来', summary: '在「今天」或「周览」点 ＋，添加一件事。',
+    tips: ['填写名称和预计时长，需要时补充优先级、重点和截止日期。', '还没确定时间？先放进「探索 → 收集箱」。', '会议、预约等可设置固定开始时间；普通任务由自动排程寻找空位。'] },
+  { id: 'week', introduced: 1, icon: 'calendar', title: '把一周摆在眼前', summary: '周览按课程表展示一周，滑动查看 00:00–24:00。',
+    tips: ['手机长按卡片拖动，可调整时间或移到另一天；点击卡片也能精确填写时间。', '固定事项先确认解锁，只允许移动一次。', '手动重叠或放到非偏好时段时先确认；自动排程仍避开占用时间。'] },
+  { id: 'rescue', introduced: 1, icon: 'wind', title: '计划变了，也能接着来', summary: '在「今天」使用一键救场，安排好接下来。',
+    tips: ['临时有事、任务超时、精力不足，都可以选择对应情况。', '比较保截止时间、保结束时间、保今日重点，查看哪些任务会移动或延期。', '确认采用后才改变日程；固定和已完成事项保持原样。'] },
+  { id: 'explore', introduced: 1, icon: 'compass', title: '想做的事与走过的路', summary: '「探索」里有收集箱和回顾。',
+    tips: ['收集箱保留尚未安排的待办，可选一件安排到今天。', '开启空闲提醒后，有较长连续空档时会问你要不要做一件待办，每天最多一次。', '回顾可查看调整记录、撤销最近一次方案；之后又修改任务时，会保护新的修改。'] },
+  { id: 'preferences', introduced: 1, icon: 'user', title: '把偏好设成你的节奏', summary: '在「我的」设置习惯，也可以导入课程。',
+    tips: ['保存开始、结束时间和任务间缓冲；结束最晚可到次日 06:00，自动安排会参考这些偏好。', '哈工大（深圳）本科课表：进入课表导入，在手机教务网页登录，核对学期第一周周一和课程后确认。', '学校账号和会话留在内置教务网页，课程作为固定事项参与日程。'] },
+  { id: 'permissions', introduced: 1, icon: 'bell', title: '让提醒在合适的时候出现', summary: '通知权限用于日程开始提醒和收集箱空闲提醒，可分别选择。',
+    tips: ['点击下面的按钮后，手机才会请求通知权限。', '暂不开启也能继续使用，之后可在「我的」调整。'] },
+  { id: 'ready', introduced: 1, icon: 'check-circle', title: '准备好，开始自己的节奏', summary: '核心功能认识了，之后也能随时回来查看。',
+    tips: ['首次进入是示例体验，不发送日程通知。准备记录自己的任务时，在「今天」选择「开始我的一天」并确认清空示例。', '在「我的 → 检查更新」获取已发布版本。下载后由系统确认安装，按需允许浏览器安装该更新包。', '重要日程可在「我的」导出备份；数据保存在本机，卸载或清除应用数据会移除记录。'] },
+] as const;
+export type GuideStepId = typeof GUIDE_STEPS[number]['id'];
+export type GuideProgress = { version: 1; revision: number; stepId: GuideStepId; completedRevision: number; deferredRevision: number };
+export const GUIDE_STORAGE_KEY = 'liubai.guide.v1';
+export const freshGuideProgress = (): GuideProgress => ({ version: 1, revision: GUIDE_REVISION, stepId: 'welcome', completedRevision: 0, deferredRevision: 0 });
+
+export function parseGuideProgress(raw: string | null): GuideProgress {
+  try {
+    if (!raw) return freshGuideProgress();
+    const value = JSON.parse(raw) as GuideProgress;
+    const revision = (number: unknown) => Number.isSafeInteger(number) && (number as number) >= 0 && (number as number) <= 10000;
+    if (!value || value.version !== 1 || !revision(value.revision) || value.revision < 1
+      || !revision(value.completedRevision) || !revision(value.deferredRevision)) return freshGuideProgress();
+    return { version: 1, revision: value.revision, completedRevision: value.completedRevision, deferredRevision: value.deferredRevision,
+      stepId: GUIDE_STEPS.some(step => step.id === value.stepId) ? value.stepId : 'welcome' };
+  } catch { return freshGuideProgress(); }
+}
+
+export function shouldShowGuide(progress: GuideProgress, revision = GUIDE_REVISION): boolean {
+  return progress.completedRevision < revision && progress.deferredRevision < revision;
+}
+export function guideStartStep(progress: GuideProgress, revision = GUIDE_REVISION,
+  steps: readonly { id: GuideStepId; introduced: number }[] = GUIDE_STEPS): GuideStepId {
+  if (progress.completedRevision >= revision) return steps[0].id;
+  if (progress.revision !== revision) return steps.find(step => step.introduced > progress.completedRevision)?.id ?? steps[0].id;
+  return steps.some(step => step.id === progress.stepId) ? progress.stepId : steps[0].id;
+}
+export function visitGuideStep(progress: GuideProgress, stepId: GuideStepId): GuideProgress {
+  return { ...progress, revision: GUIDE_REVISION, stepId };
+}
+export function deferGuide(progress: GuideProgress): GuideProgress {
+  return { ...progress, revision: GUIDE_REVISION, deferredRevision: Math.max(progress.deferredRevision, GUIDE_REVISION) };
+}
+export function completeGuide(progress: GuideProgress): GuideProgress {
+  return { ...progress, revision: GUIDE_REVISION, stepId: GUIDE_STEPS[GUIDE_STEPS.length - 1].id,
+    completedRevision: Math.max(progress.completedRevision, GUIDE_REVISION), deferredRevision: Math.max(progress.deferredRevision, GUIDE_REVISION) };
+}
+export function createGuideWriter(write: (value: string) => Promise<void>): (progress: GuideProgress) => Promise<void> {
+  let queue = Promise.resolve();
+  return progress => { const encoded = JSON.stringify(progress); queue = queue.catch(() => {}).then(() => write(encoded)); return queue; };
+}

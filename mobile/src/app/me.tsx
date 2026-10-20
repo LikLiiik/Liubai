@@ -7,6 +7,7 @@ import { enableNotifications } from '../notifications';
 import { DEFAULT_FREE_MINUTES, findInboxSuggestion, localMoment } from '../inboxReminders';
 import { InboxSuggestionDialog } from '../components/InboxSuggestionDialog';
 import { UpdateCard } from '../components/UpdateCard';
+import { GuideCard } from '../components/GuideCard';
 import { appVersion } from '../appVersion';
 import { defaultSettings } from '../seed';
 import { useRouter } from 'expo-router';
@@ -81,6 +82,7 @@ export default function Me() {
 
   return <><ScrollView contentContainerStyle={{ padding: width < 600 ? 20 : 38, paddingBottom: 45 }}><View style={{ maxWidth: 900, width: '100%', alignSelf: 'center' }}>
     <Label style={{ fontSize: 28, lineHeight: 38, fontWeight: '700' }}>我的</Label><Label muted style={{ fontSize: 11, marginTop: 6, marginBottom: 27 }}>你的节奏、提醒和数据，都在这里。</Label>
+    <GuideCard />
     <Card style={{ marginBottom: 20 }}><View style={{ flexDirection: 'row', gap: 9, alignItems: 'center' }}><Icon name="sun" size={18} color={c.purple} /><Label style={{ fontWeight: '600', fontSize: 14 }}>日程偏好</Label></View>
       <View style={{ flexDirection: 'row', gap: 16 }}><View style={{ flex: 1 }}><FieldTitle>从几点开始</FieldTitle><TextInput accessibilityLabel="一天开始时间" value={start} onChangeText={setStart} onBlur={() => completeTime('start')} onSubmitEditing={() => completeTime('start')} selectTextOnFocus autoCorrect={false} placeholder="开始时间" style={input} /></View><View style={{ flex: 1 }}><FieldTitle>希望几点结束</FieldTitle><TextInput accessibilityLabel="一天结束时间" value={end} onChangeText={setEnd} onBlur={() => completeTime('end')} onSubmitEditing={() => completeTime('end')} selectTextOnFocus autoCorrect={false} placeholder="结束时间" style={input} /></View></View>
       <Label muted style={{ fontSize: 11, marginTop: 10 }}>结束最晚可到次日凌晨 6 点。</Label>
@@ -109,5 +111,5 @@ export default function Me() {
     <Card style={{ marginBottom: 25 }}><Label style={{ fontWeight: '600', fontSize: 14 }}>重新开始</Label><Label muted style={{ fontSize: 11, marginTop: 9 }}>载入示例或清空任务都会替换当前数据，请先导出需要保留的记录。</Label><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9, marginTop: 17 }}><Button title="重新体验示例" icon="refresh-cw" variant="secondary" small onPress={() => setConfirm('demo')} /><Button title="清空，开始我的一天" icon="sunrise" variant="ghost" small onPress={() => setConfirm('empty')} /></View></Card>
     <UpdateCard />
     <Label muted style={{ textAlign: 'center', fontSize: 10 }}>留白 {appVersion} · 给今天留一点余地</Label>
-  </View></ScrollView><Confirm visible={!!confirm} title={confirm === 'demo' ? '重新载入示例日程？' : '清空并重新开始？'} description="当前所有任务和调整记录都将被替换。请确认已经导出需要保留的数据。" action={confirm === 'demo' ? '载入示例' : '确认清空'} onClose={() => setConfirm(null)} onConfirm={() => { reset(confirm === 'demo'); setStart(clock(defaultSettings.dayStart)); setEnd(preferenceTime(defaultSettings.dayEnd)); setBuffer(String(defaultSettings.buffer)); setError(''); setConfirm(null); }} /><InboxSuggestionDialog taskId={previewTask} preview onClose={() => setPreviewTask(null)} /></>;
+  </View></ScrollView><Confirm visible={!!confirm} title={confirm === 'demo' ? '重新载入示例日程？' : '清空并重新开始？'} description={`当前所有任务和调整记录都将被替换。${confirm === 'empty' ? '日程偏好和提醒设置会保留。' : ''}请确认已经导出需要保留的数据。`} action={confirm === 'demo' ? '载入示例' : '确认清空'} onClose={() => setConfirm(null)} onConfirm={() => { const nextSettings = confirm === 'demo' ? defaultSettings : data.settings; reset(confirm === 'demo'); setStart(clock(nextSettings.dayStart)); setEnd(preferenceTime(nextSettings.dayEnd)); setBuffer(String(nextSettings.buffer)); setError(''); setConfirm(null); }} /><InboxSuggestionDialog taskId={previewTask} preview onClose={() => setPreviewTask(null)} /></>;
 }

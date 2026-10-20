@@ -5,7 +5,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { PlanningProvider } from '../store';
 import { Shell } from '../components/Shell';
 import { ReminderObserver } from '../components/ReminderObserver';
+import { GuideProvider } from '../guideStore';
 
 export default function Layout() {
-  return <SafeAreaProvider><PlanningProvider><StatusBar style="dark" /><Shell><Slot /><ReminderObserver /></Shell></PlanningProvider></SafeAreaProvider>;
+  return <SafeAreaProvider><PlanningProvider><GuideProvider><StatusBar style="dark" /><Shell><Slot /><ReminderObserver /></Shell></GuideProvider></PlanningProvider></SafeAreaProvider>;
 }

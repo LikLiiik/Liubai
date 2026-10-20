@@ -124,7 +124,7 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
   const updateSettings = useCallback((settings: Settings) => setData(previous => ({ ...previous, settings })), []);
   const reset = useCallback((demo: boolean) => {
     setLoadError(null);
-    setData(demo ? createDemo() : createEmpty());
+    setData(previous => demo ? createDemo() : createEmpty(previous.settings));
     notify(demo ? '已载入示例日程，模拟时间为 14:00。' : '空白的一天，准备好了。');
   }, [notify]);
 

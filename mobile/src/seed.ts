@@ -1,5 +1,5 @@
-import type { AppData, Task } from './types';
-import { dateKey, nextDay } from './utils';
+import type { AppData, Settings, Task } from './types.ts';
+import { dateKey, nextDay } from './utils.ts';
 
 export const defaultSettings = { dayStart: 9 * 60, dayEnd: 18 * 60, buffer: 10 };
 
@@ -21,6 +21,6 @@ export function createDemo(): AppData {
   };
 }
 
-export function createEmpty(): AppData {
-  return { version: 1, demo: false, settings: { ...defaultSettings }, history: [], tasks: [] };
+export function createEmpty(settings: Settings = defaultSettings): AppData {
+  return { version: 1, demo: false, settings: { ...settings }, history: [], tasks: [] };
 }
