@@ -1,20 +1,25 @@
 {
   "name": "留白",
-  "version": "0.1.1",
-  "androidVersionCode": 2,
+  "version": "0.2.0",
+  "androidVersionCode": 3,
   "package": "app.liubai.planner",
-  "file": "liubai-0.1.1-android.apk",
-  "sizeBytes": 98911086,
-  "sha256": "99db3dcc6634c74415ebf25287731bf1d4eeb31fe04e13a10207926d4e2bc8da",
-  "buildId": "a1b8830b-22b2-47b5-a206-e102c0d2a838",
-  "buildUrl": "https://expo.dev/accounts/likliiik/projects/liubai-planner/builds/a1b8830b-22b2-47b5-a206-e102c0d2a838",
-  "downloadUrl": "https://expo.dev/artifacts/eas/m93PmRQOIY47qDb3JU-_avYB7MdAadot4n4jRAp-uL0.apk",
-  "sourceCommit": "5086a21f4d2c4f6a7b535e6a12cc8dd3ab8c85b8",
+  "file": "liubai-0.2.0-android.apk",
+  "sizeBytes": 99737895,
+  "sha256": "a01343a89c05437634b6387dfde66e4a2ce69fa95c85ba00faacf8fdb5812175",
+  "buildId": "0945a938-cdbf-47e3-90cc-a08f1b88db6d",
+  "buildUrl": "https://expo.dev/accounts/likliiik/projects/liubai-planner/builds/0945a938-cdbf-47e3-90cc-a08f1b88db6d",
+  "downloadUrl": "https://expo.dev/artifacts/eas/cV8OTyJnuqQ-zjdnZtF0LD0Dl9TYmtKOKWmNQUaOMLY.apk",
+  "sourceCommit": "b286510a158101b2d121fa57aed66263846f0a3d",
   "checks": {
     "archiveCrc": "passed",
     "package": "passed",
     "embeddedBundle": "passed",
-    "arm64Libraries": "passed"
+    "arm64Libraries": "passed",
+    "schoolReaderBundle": "passed",
+    "nativeWebView": "passed",
+    "schoolNetworkResource": "passed"
   },
-  "deviceTesting": "pending"
+  "deviceTesting": "pending",
+  "schoolLiveLogin": "pending",
+  "schoolLiveCourseQuery": "pending"
 }
