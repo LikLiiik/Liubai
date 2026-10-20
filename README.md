@@ -54,11 +54,11 @@ npm start
 
 ## 安卓手机试用
 
-`eas.json` 的 `preview` 配置生成可直接安装的 APK。项目已关联 Expo 账号 `likliiik`，首个 0.1.0（构建号 1）安装包已成功生成。
+`eas.json` 的 `preview` 配置生成可直接安装的 APK，并自动递增构建号。项目已关联 Expo 账号 `likliiik`，当前更新为 0.1.1（构建号 2），包含时间输入自动补全、次日凌晨 6 点偏好及跨夜排程支持。使用原签名，可直接覆盖 0.1.0 保留本地数据。
 
-- [下载安卓 APK，约 99 MB](https://expo.dev/artifacts/eas/qj5VBw1zFxKLdp6KxEW_KZBRT9rUPbM4mhfpLV3nRiI.apk)
-- [构建记录](https://expo.dev/accounts/likliiik/projects/liubai-planner/builds/3d3158c9-9b7b-49c1-acae-68feee0ffbfa)
-- 本地安装包：`releases/liubai-0.1.0-android.apk`。
+- [下载安卓 APK，约 99 MB](https://expo.dev/artifacts/eas/m93PmRQOIY47qDb3JU-_avYB7MdAadot4n4jRAp-uL0.apk)
+- [构建记录](https://expo.dev/accounts/likliiik/projects/liubai-planner/builds/a1b8830b-22b2-47b5-a206-e102c0d2a838)
+- 本地安装包：`releases/liubai-0.1.1-android.apk`。
 - 手机下载二维码：`releases/留白安卓下载二维码.png`；校验信息：`releases/android-release.json`。
 
 已核对下载文件的 ZIP CRC、应用包名、内嵌程序资源和 arm64 原生库。构建及文件校验通过，实际设备的启动、手势和通知效果仍需试用验收。
