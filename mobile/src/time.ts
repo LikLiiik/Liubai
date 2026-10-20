@@ -97,11 +97,22 @@ export function deadlineLimit(task: Task, date: string): number {
   return task.deadline ? Math.max(0, daysBetween(task.deadline, date) + 1) * 1440 : Infinity;
 }
 
+// Preserve planned duration for review, but release the unused part of a
+// completed event when testing availability or drawing its occupied interval.
+export function occupiedDuration(task: Task): number {
+  if (!task.completed || !task.completedAt || !task.date || task.start === null || isQuick(task)) return task.duration;
+  const start = new Date(`${task.date}T00:00:00`);
+  start.setMinutes(task.start);
+  const elapsed = (Date.parse(task.completedAt) - start.getTime()) / 60000;
+  return Number.isFinite(elapsed) ? Math.max(0, Math.min(task.duration, Math.ceil(elapsed))) : task.duration;
+}
+
 export function overlaps(a: Task, b: Task): boolean {
   if (isQuick(a) || isQuick(b)) return false;
   if (!a.date || a.start === null || !b.date || b.start === null) return false;
   const start = relativeStart(b, a.date)!;
-  return a.start < start + b.duration && start < a.start + a.duration;
+  const aDuration = occupiedDuration(a), bDuration = occupiedDuration(b);
+  return aDuration > 0 && bDuration > 0 && a.start < start + bDuration && start < a.start + aDuration;
 }
 
 export function finishesByDeadline(date: string, start: number, duration: number, deadline: string | null): boolean {
@@ -117,8 +128,9 @@ export function nonPreferredRanges(settings: Settings): { start: number; end: nu
 export type CalendarSegment = { task: Task; date: string; start: number; duration: number; offset: number };
 export function calendarSegments(task: Task): CalendarSegment[] {
   if (!task.date || task.start === null) return [];
-  const first = Math.min(task.duration, 1440 - task.start);
+  const duration = occupiedDuration(task);
+  const first = Math.min(duration, 1440 - task.start);
   const result = [{ task, date: task.date, start: task.start, duration: first, offset: 0 }];
-  if (first < task.duration) result.push({ task, date: shiftDate(task.date, 1), start: 0, duration: task.duration - first, offset: first });
+  if (first < duration) result.push({ task, date: shiftDate(task.date, 1), start: 0, duration: duration - first, offset: first });
   return result;
 }

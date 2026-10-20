@@ -1,19 +1,21 @@
 import React, { useState } from 'react';
-import { TextInput, View } from 'react-native';
+import { Pressable, TextInput, View } from 'react-native';
 import type { Task } from '../types';
 import type { TaskPosition } from '../week';
 import { clock, durationText } from '../utils';
 import { colors as c, font } from '../theme';
 import { parseTime } from './TaskEditor';
-import { Badge, Button, Dialog, FieldTitle, Label } from './ui';
+import { Badge, Button, Dialog, FieldTitle, Icon, Label } from './ui';
 import { TimeField } from './TimeField';
 import { isQuick } from '../quick';
+import { usePlanning } from '../store';
 
 export function WeekTaskDetails({ task, fallbackDate, fallbackStart, onClose, onSave, onUnlock, onEdit }: {
   task: Task; fallbackDate: string; fallbackStart: number; onClose: () => void;
   onSave: (position: TaskPosition) => string | null; onUnlock: () => void; onEdit: () => void;
 }) {
   const [date, setDate] = useState(task.date ?? fallbackDate);
+  const { setCompleted } = usePlanning();
   const [time, setTime] = useState(clock(task.start ?? fallbackStart));
   const [error, setError] = useState('');
   const quick = isQuick(task);
@@ -29,6 +31,10 @@ export function WeekTaskDetails({ task, fallbackDate, fallbackStart, onClose, on
       <Button title="编辑详情" variant="ghost" small icon="edit-2" onPress={onEdit} />
       <Button title={task.fixed ? '确认修改固定时间' : '保存这个时间'} disabled={task.completed} icon="check" onPress={save} />
     </View>}>
+    <Pressable accessibilityRole="checkbox" accessibilityLabel="此事件已完成" accessibilityState={{ checked: task.completed }}
+      onPress={() => { setCompleted(task.id, !task.completed); onClose(); }} style={{ minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+      <Icon name={task.completed ? 'check-square' : 'square'} color={c.purple} size={21} /><Label style={{ fontSize: 13 }}>此事件已完成</Label>
+    </Pressable>
     <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 5 }}>
       <Badge title={quick ? '顺手小事 · 时间点提醒' : durationText(task.duration)} tone="neutral" icon={quick ? 'bell' : undefined} />
       {task.fixed && <Badge title="固定事项 · 默认锁定" tone="orange" icon="lock" />}

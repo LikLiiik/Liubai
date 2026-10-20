@@ -1,6 +1,6 @@
 import type { AppData, PlanResult, Settings, Task } from './types.ts';
 import { mergeIntervals } from './scheduler.ts';
-import { daysBetween, finishesByDeadline, normalizePosition, planningContext, relativeStart, shiftDate, validSettings } from './time.ts';
+import { daysBetween, finishesByDeadline, normalizePosition, occupiedDuration, planningContext, relativeStart, shiftDate, validSettings } from './time.ts';
 import { clock, dateKey, durationText } from './utils.ts';
 import { isQuick } from './quick.ts';
 
@@ -22,9 +22,9 @@ function minuteOn(date: string, moment: Date): number {
 }
 
 export function freeWindows(tasks: Task[], settings: Settings, date: string): { start: number; end: number }[] {
-  const busy = mergeIntervals(tasks.filter(task => !isQuick(task) && task.date && task.start !== null)
+  const busy = mergeIntervals(tasks.filter(task => !isQuick(task) && occupiedDuration(task) > 0 && task.date && task.start !== null)
     .map(task => ({ start: Math.max(settings.dayStart, relativeStart(task, date)! - (task.fixed ? 0 : settings.buffer)),
-      end: Math.min(settings.dayEnd, relativeStart(task, date)! + task.duration + (task.fixed ? 0 : settings.buffer)) })));
+      end: Math.min(settings.dayEnd, relativeStart(task, date)! + occupiedDuration(task) + (task.fixed ? 0 : settings.buffer)) })));
   const gaps: { start: number; end: number }[] = [];
   let cursor = settings.dayStart;
   for (const block of busy) { if (block.start > cursor) gaps.push({ start: cursor, end: block.start }); cursor = Math.max(cursor, block.end); }

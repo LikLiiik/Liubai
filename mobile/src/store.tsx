@@ -9,6 +9,7 @@ import { planningContext, validSettings } from './time';
 import { applyPlanToData } from './planApply';
 import { addCategoryToData, knownCategory, type CategoryAddResult } from './categories';
 import { validTaskTiming } from './quick';
+import { createAdvancePlan, setTaskCompletion } from './completion';
 
 type Store = {
   data: AppData;
@@ -26,6 +27,10 @@ type Store = {
   undoPlan: () => void;
   updateSettings: (settings: Settings) => void;
   addCategory: (name: string) => CategoryAddResult;
+  setCompleted: (id: string, completed: boolean, consentKey?: string) => boolean;
+  completionOffer: string | null;
+  completionRestore: { taskId: string; key: string; conflicts: string[] } | null;
+  dismissCompletionOffer: () => void;
   reset: () => void;
   reload: () => void;
 };
@@ -70,6 +75,8 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'saving' | 'saved' | 'error'>('saving');
   const [toast, setToast] = useState<string | null>(null);
+  const [completionOffer, setCompletionOffer] = useState<string | null>(null);
+  const [completionRestore, setCompletionRestore] = useState<Store['completionRestore']>(null);
   const [tick, setTick] = useState(() => new Date());
   const today = dateKey(tick);
   const timezoneOffset = tick.getTimezoneOffset();
@@ -123,6 +130,28 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
   const mutateTasks = useCallback((update: (tasks: Task[]) => Task[]) => {
     return commit(previous => { const tasks = update(previous.tasks); return tasks === previous.tasks ? previous : { ...previous, tasks }; });
   }, [commit]);
+  const setCompleted = useCallback((id: string, completed: boolean, consentKey?: string) => {
+    const moment = new Date();
+    let offer = false;
+    let restore: Store['completionRestore'] = null;
+    const changed = commit(previous => {
+      const result = setTaskCompletion(previous.tasks, id, completed, moment.toISOString(), consentKey);
+      if (result.confirmation) restore = { taskId: id, key: result.confirmation.key, conflicts: result.confirmation.conflicts.map(task => task.title) };
+      const tasks = result.tasks;
+      if (tasks === previous.tasks) return previous;
+      const context = planningContext(dateKey(moment), moment.getHours() * 60 + moment.getMinutes(), previous.settings);
+      offer = completed && createAdvancePlan(tasks, previous.settings, id, context.date, context.now).changes.length > 0;
+      return { ...previous, tasks };
+    });
+    if (restore) { setCompletionOffer(null); setCompletionRestore(restore); }
+    if (changed) {
+      setCompletionRestore(null);
+      setCompletionOffer(offer ? id : null);
+      notify(completed ? '已标记完成。' : '已恢复为待完成。');
+    }
+    return changed;
+  }, [commit, notify]);
+  const dismissCompletionOffer = useCallback(() => { setCompletionOffer(null); setCompletionRestore(null); }, []);
   const applyPlan = useCallback((plan: PlanResult, title: string, options?: { demo: boolean }) => {
     let error: string | undefined;
     const applied = commit(previous => {
@@ -165,7 +194,7 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
   const planning = planningContext(today, now, data.settings);
   return <Context.Provider value={{ data, loading, loadError, saveStatus, today, now,
     planningDate: planning.date, planningNow: planning.now, toast, notify, mutateTasks, applyPlan,
-    undoPlan, updateSettings, addCategory, reset, reload }}>{children}</Context.Provider>;
+    undoPlan, updateSettings, addCategory, setCompleted, completionOffer, completionRestore, dismissCompletionOffer, reset, reload }}>{children}</Context.Provider>;
 }
 
 export function usePlanning() {

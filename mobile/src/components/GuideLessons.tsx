@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { createPlan } from '../scheduler';
 import type { Category, Task } from '../types';
 import { clock, taskPosition, uid } from '../utils';
@@ -11,7 +11,36 @@ import { addCategoryToData, categoriesFor } from '../categories';
 import { createEmpty } from '../seed';
 import { CategoryPicker } from './CategoryPicker';
 import { parseTime } from '../time';
+import { createAdvancePlan, setTaskCompletion } from '../completion';
 export { WeekGuideLesson } from './GuideWeekLesson';
+
+export function CompletionGuideLesson() {
+  const initial = useMemo<Task[]>(() => {
+    const base: Task = { id: '', title: '', notes: '', duration: 30, category: 'work', priority: 'normal', important: false,
+      fixed: false, completed: false, date: '2026-10-21', start: 840, deadline: null, postponed: 0 };
+    return [{ ...base, id: 'guide-current', title: '整理资料', duration: 60 }, { ...base, id: 'guide-next', title: '处理邮件', start: 910 },
+      { ...base, id: 'guide-fixed', title: '固定会议', start: 960, fixed: true }];
+  }, []);
+  const [tasks, setTasks] = useState(initial);
+  const [stage, setStage] = useState<'pending' | 'offer' | 'kept' | 'advanced'>('pending');
+  const plan = useMemo(() => createAdvancePlan(tasks, { dayStart: 540, dayEnd: 1080, buffer: 10 }, 'guide-current', '2026-10-21', 860), [tasks]);
+  return <View style={{ marginTop: 20, padding: 16, backgroundColor: c.bg, borderRadius: 13, gap: 12 }}>
+    <View style={{ alignSelf: 'flex-start' }}><Badge title="教学演示 · 不改变日程" tone="neutral" /></View>
+    <Label muted style={{ fontSize: 12 }}>现在是 14:20，试着勾选当前事项。</Label>
+    <Pressable accessibilityRole="checkbox" accessibilityLabel="演示：当前事件已完成" accessibilityState={{ checked: tasks[0].completed }}
+      onPress={() => { if (stage === 'pending') { setTasks(setTaskCompletion(tasks, 'guide-current', true, new Date('2026-10-21T14:20:00').toISOString()).tasks); setStage('offer'); } }}
+      style={{ minHeight: 44, flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+      <Icon name={tasks[0].completed ? 'check-square' : 'square'} color={c.purple} /><Label style={{ fontSize: 13 }}>整理资料 · {tasks[0].completed ? '已完成' : '进行中'}</Label>
+    </Pressable>
+    {tasks.slice(1).map(task => <View key={task.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Icon name={task.fixed ? 'lock' : 'circle'} size={13} /><Label style={{ fontSize: 12 }}>{clock(task.start!)} · {task.title}</Label></View>)}
+    {stage === 'offer' && <View style={{ padding: 12, borderRadius: 10, backgroundColor: c.lavender, gap: 10 }}>
+      <Label style={{ fontSize: 12 }}>后续可提前：处理邮件 15:10 → 14:30</Label>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}><Button title="演示：保持原安排" small variant="ghost" onPress={() => setStage('kept')} />
+        <Button title="演示：确认提前" small onPress={() => { setTasks(plan.tasks); setStage('advanced'); }} /></View>
+    </View>}
+    {(stage === 'kept' || stage === 'advanced') && <><Label accessibilityLiveRegion="polite" muted style={{ fontSize: 12 }}>{stage === 'kept' ? '已记录完成，后续时间保持原样。' : '后续任务已提前，16:00 的固定会议保持不变。'}</Label><Button title="重新体验完成选择" small variant="ghost" onPress={() => { setTasks(initial); setStage('pending'); }} /></>}
+  </View>;
+}
 
 export function QuickGuideLesson() {
   const [time, setTime] = useState('15:00');

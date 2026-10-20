@@ -11,7 +11,7 @@ export type MoveResult =
 // Consent applies to this exact placement and the overlapping events visible in its confirmation.
 export function overlapConsentKey(task: Task, conflicts: Task[]): string {
   return JSON.stringify([task.id, task.date, task.start, task.duration, task.deadline, task.fixed,
-    conflicts.slice().sort((a, b) => a.id.localeCompare(b.id)).map(item => [item.id, item.date, item.start, item.duration])]);
+    conflicts.slice().sort((a, b) => a.id.localeCompare(b.id)).map(item => [item.id, item.date, item.start, item.duration, item.completed, item.completedAt])]);
 }
 
 export function addDays(key: string, amount: number): string {

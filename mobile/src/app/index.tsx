@@ -5,7 +5,7 @@ import { usePlanning } from '../store';
 import { colors as c } from '../theme';
 import { clock, dateKey, durationText } from '../utils';
 import { freeMinutes } from '../scheduler';
-import { inPlanningDay, relativeStart } from '../time';
+import { inPlanningDay, occupiedDuration, relativeStart } from '../time';
 import type { RescueReason, Task } from '../types';
 import { Badge, Button, Card, EmptyState, Icon, Label } from '../components/ui';
 import { TaskEditor } from '../components/TaskEditor';
@@ -13,7 +13,7 @@ import { RescueDialog } from '../components/RescueDialog';
 import { isQuick } from '../quick';
 
 export default function Today() {
-  const { data, planningDate: today, planningNow: now, today: calendarToday, mutateTasks, notify } = usePlanning();
+  const { data, planningDate: today, planningNow: now, today: calendarToday, setCompleted } = usePlanning();
   const { width } = useWindowDimensions();
   const desktop = width >= 1200;
   const compact = width < 600;
@@ -22,7 +22,7 @@ export default function Today() {
   const [rescue, setRescue] = useState<RescueReason | null>(null);
   const [showDone, setShowDone] = useState(false);
   const tasks = data.tasks.filter(task => isQuick(task) ? task.date === calendarToday : inPlanningDay(task, today, data.settings));
-  const timelineTask = (task: Task): Task => ({ ...task, start: relativeStart(task, today) });
+  const timelineTask = (task: Task): Task => ({ ...task, date: today, start: relativeStart(task, today) });
   const done = tasks.filter(task => task.completed);
   const pending = tasks.filter(task => !task.completed);
   const planned = pending.filter(task => task.start !== null).sort((a, b) => timelineTask(a).start! - timelineTask(b).start!);
@@ -39,8 +39,7 @@ export default function Today() {
   const dayOver = now >= data.settings.dayEnd;
 
   function toggleTask(task: Task) {
-    mutateTasks(items => items.map(item => item.id === task.id ? { ...item, completed: !task.completed, completedAt: task.completed ? undefined : new Date().toISOString() } : item));
-    notify(task.completed ? '已恢复为待完成。' : '又向前走了一步。');
+    setCompleted(task.id, !task.completed);
   }
 
   return <><ScrollView contentContainerStyle={{ padding: compact ? 20 : 38, paddingTop: compact ? 26 : 32, paddingBottom: 42 }}>
@@ -130,7 +129,7 @@ function TimelineTask({ task, now, onEdit, onToggle, compact }: { task: Task; no
   const green = task.category === 'health';
   const color = task.completed ? c.faint : green ? c.green : task.important ? c.purple : c.muted;
   return <View style={{ flexDirection: 'row', alignItems: 'stretch', gap: compact ? 9 : 15, marginBottom: 12 }}>
-    <View style={{ width: compact ? 40 : 50, alignItems: 'flex-end', paddingTop: 17 }}><Label style={{ fontSize: 11, fontWeight: active ? '600' : '400', color: active ? c.purple : c.muted }}>{task.start !== null ? clock(task.start) : '待定'}</Label>{task.start !== null && !quick && <Label style={{ fontSize: 9, color: c.faint, lineHeight: 18 }}>{clock(task.start + task.duration)}</Label>}</View>
+    <View style={{ width: compact ? 40 : 50, alignItems: 'flex-end', paddingTop: 17 }}><Label style={{ fontSize: 11, fontWeight: active ? '600' : '400', color: active ? c.purple : c.muted }}>{task.start !== null ? clock(task.start) : '待定'}</Label>{task.start !== null && !quick && <Label style={{ fontSize: 9, color: c.faint, lineHeight: 18 }}>{clock(task.start + occupiedDuration(task))}</Label>}</View>
     <View style={{ width: 2, backgroundColor: '#E8E5EF', alignItems: 'center' }}><View style={{ marginTop: 22, width: 7, height: 7, borderRadius: 4, backgroundColor: active ? c.purple : '#D5D0DF', borderWidth: active ? 2 : 0, borderColor: '#E7DFF8' }} /></View>
     <View style={{ flex: 1, borderWidth: 1, borderColor: active ? '#CFBFEF' : task.completed ? '#ECECF1' : c.border, backgroundColor: task.completed ? '#FAFAFB' : active ? '#F9F6FF' : '#fff', borderRadius: 13, flexDirection: 'row', alignItems: 'center', padding: compact ? 14 : 17, gap: 12, minHeight: 93 }}>
       <Pressable accessibilityRole="checkbox" accessibilityLabel={`${task.completed ? '恢复任务' : '完成任务'}：${task.title}`} accessibilityState={{ checked: task.completed }} onPress={onToggle} style={{ width: 21, height: 21, borderRadius: 7, borderWidth: task.completed ? 0 : 1.5, borderColor: task.important ? '#C8B7E8' : '#DBDCE3', backgroundColor: task.completed ? '#B8CBBE' : 'transparent', alignItems: 'center', justifyContent: 'center' }}>{task.completed && <Icon name="check" size={13} color="#fff" />}</Pressable>

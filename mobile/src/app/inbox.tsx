@@ -14,7 +14,7 @@ import { KeyboardFormScrollView } from '../components/KeyboardForm';
 import { isQuick } from '../quick';
 
 export default function Inbox() {
-  const { data, planningDate: today, planningNow: now, mutateTasks, notify, addCategory } = usePlanning();
+  const { data, planningDate: today, planningNow: now, mutateTasks, notify, addCategory, setCompleted } = usePlanning();
   const { width } = useWindowDimensions();
   const compact = width < 600;
   const [editor, setEditor] = useState<{ task?: Task } | null>(null);
@@ -46,7 +46,7 @@ export default function Inbox() {
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 }}><Icon name={group.icon} size={16} color={c.purple} /><Label style={{ fontSize: 13, fontWeight: '600' }}>{group.title}</Label><Badge title={String(group.tasks.length)} tone="neutral" /></View>
         <Card style={{ padding: 0, overflow: 'hidden' }}>{group.tasks.map((task, index) => <View key={task.id} style={{ padding: compact ? 17 : 23, borderBottomWidth: index < group.tasks.length - 1 ? 1 : 0, borderBottomColor: c.border }}>
           <View style={{ flexDirection: 'row', gap: 13, alignItems: 'center' }}>
-            <Pressable accessibilityRole="checkbox" accessibilityLabel={`完成任务：${task.title}`} accessibilityState={{ checked: false }} onPress={() => { mutateTasks(tasks => tasks.map(item => item.id === task.id ? { ...item, completed: true, completedAt: new Date().toISOString() } : item)); notify('完成了，进展已记录在回顾中。'); }} style={{ width: 20, height: 20, borderWidth: 1.5, borderColor: '#D8D4E2', borderRadius: 7 }} />
+            <Pressable accessibilityRole="checkbox" accessibilityLabel={`完成任务：${task.title}`} accessibilityState={{ checked: false }} onPress={() => setCompleted(task.id, true)} style={{ width: 20, height: 20, borderWidth: 1.5, borderColor: '#D8D4E2', borderRadius: 7 }} />
             <Pressable accessibilityRole="button" accessibilityLabel={`编辑任务：${task.title}`} onPress={() => setEditor({ task })} style={{ flex: 1 }}><Label style={{ fontSize: 13, fontWeight: '500' }}>{task.title}</Label><View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 7 }}><Label muted style={{ fontSize: 10 }}>{isQuick(task) ? '顺手小事' : durationText(task.duration)}</Label><Badge title={categories.find(category => category.id === task.category)?.name ?? '未分类'} tone={task.category === 'health' ? 'green' : 'neutral'} />{task.important && <Badge title="重点" />}{task.date && <Label muted style={{ fontSize: 10 }}>{task.date}{task.start !== null ? ` ${clock(task.start)}` : ' · 待安排'}</Label>}</View></Pressable>
             {!compact && <Button title="安排到今天" icon="arrow-up-right" variant="secondary" small onPress={() => addToToday(task)} />}
           </View>

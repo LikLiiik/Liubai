@@ -6,7 +6,8 @@ import { PlanningProvider } from '../store';
 import { Shell } from '../components/Shell';
 import { ReminderObserver } from '../components/ReminderObserver';
 import { GuideProvider } from '../guideStore';
+import { CompletionAdvanceDialog } from '../components/CompletionAdvanceDialog';
 
 export default function Layout() {
-  return <SafeAreaProvider><PlanningProvider><GuideProvider><StatusBar style="dark" /><Shell><Slot /><ReminderObserver /></Shell></GuideProvider></PlanningProvider></SafeAreaProvider>;
+  return <SafeAreaProvider><PlanningProvider><GuideProvider><StatusBar style="dark" /><Shell><Slot /><ReminderObserver /><CompletionAdvanceDialog /></Shell></GuideProvider></PlanningProvider></SafeAreaProvider>;
 }
