@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { usePlanning } from '../store';
 import { colors as c } from '../theme';
 import { clock, durationText } from '../utils';
-import { addDays, layoutDay, moveTaskTo, outsidePreferredHours, positionFromPoint, weekDates, type TaskPosition } from '../week';
+import { addDays, layoutDay, moveTaskTo, outsidePreferredHours, positionFromPoint, validDate, weekDates, type TaskPosition } from '../week';
 import type { Task } from '../types';
 import { calendarSegments, nonPreferredRanges, type CalendarSegment } from '../time';
 import { Button, Chip, Confirm, Dialog, FieldTitle, Icon, Label } from '../components/ui';
@@ -22,9 +23,11 @@ type DragPreview = { task: Task; position: TaskPosition | null; error: string | 
 
 export default function Week() {
   const { data, today, now, applyPlan, notify } = usePlanning();
+  const params = useLocalSearchParams<{ date?: string }>();
+  const initialDate = typeof params.date === 'string' && validDate(params.date) ? params.date : today;
   const { width } = useWindowDimensions();
   const compact = width < 600;
-  const [anchor, setAnchor] = useState(today);
+  const [anchor, setAnchor] = useState(initialDate);
   const [expanded, setExpanded] = useState(false);
   const [showTray, setShowTray] = useState(false);
   const [showOptions, setShowOptions] = useState(false);

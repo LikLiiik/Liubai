@@ -5,10 +5,12 @@ import { colors as c, font } from '../theme';
 import { clock } from '../utils';
 import { enableNotifications } from '../notifications';
 import { defaultSettings } from '../seed';
+import { useRouter } from 'expo-router';
 import { parseTime, parsePreferenceEnd, preferenceTime } from '../time';
 import { Badge, Button, Card, Chip, Confirm, FieldTitle, Icon, Label } from '../components/ui';
 
 export default function Me() {
+  const router = useRouter();
   const { data, updateSettings, notify, reset, saveStatus } = usePlanning();
   const { width } = useWindowDimensions();
   const [start, setStart] = useState(clock(data.settings.dayStart));
@@ -70,12 +72,13 @@ export default function Me() {
       {error && <Label accessibilityRole="alert" style={{ color: c.red, fontSize: 12, marginTop: 13 }}>{error}</Label>}
       <Button title="保存我的节奏" icon="check" onPress={save} style={{ alignSelf: 'flex-start', marginTop: 20 }} />
     </Card>
+    <Card style={{ marginBottom: 20 }}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}><Icon name="book-open" color={c.purple} /><View style={{ flex: 1 }}><Label style={{ fontWeight: '600', fontSize: 14 }}>课表导入</Label><Label muted style={{ fontSize: 11, marginTop: 5 }}>哈尔滨工业大学（深圳）</Label></View><Button title="导入课表" icon="download" variant="secondary" small onPress={() => router.navigate('/course-import')} /></View></Card>
     <Card style={{ marginBottom: 20 }}><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 15 }}><View style={{ flex: 1 }}><Label style={{ fontWeight: '600', fontSize: 14 }}>日程提醒</Label><Label muted style={{ fontSize: 11, marginTop: 8 }}>{Platform.OS === 'web' ? '系统提醒需要在手机端使用，网页预览不发送通知。' : '在任务开始时发送本地通知。示例日程不发送提醒。'}</Label></View><Button title={permissionPending ? '正在开启…' : data.settings.notificationsEnabled ? '关闭提醒' : '开启提醒'} icon="bell" variant="secondary" small disabled={permissionPending || Platform.OS === 'web'} onPress={toggleNotifications} /></View></Card>
     <Card style={{ marginBottom: 20 }}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}><Icon name="hard-drive" size={18} color={c.green} /><Label style={{ fontSize: 14, fontWeight: '600' }}>数据留在你这里</Label><Badge title={saveStatus === 'saved' ? '本地保存' : saveStatus === 'saving' ? '保存中' : '保存失败'} tone={saveStatus === 'error' ? 'orange' : 'green'} /></View>
       <Label muted style={{ fontSize: 11, marginTop: 12 }}>当前版本无需账号。{Platform.OS === 'web' ? '数据保存在这个浏览器中，清除站点数据会删除记录。' : '数据保存在这台设备上，卸载应用会删除记录。'}跨设备同步尚未接入。</Label>
       <Button title="导出数据备份" icon="download" variant="secondary" small onPress={exportData} style={{ alignSelf: 'flex-start', marginTop: 17 }} />
     </Card>
     <Card style={{ marginBottom: 25 }}><Label style={{ fontWeight: '600', fontSize: 14 }}>重新开始</Label><Label muted style={{ fontSize: 11, marginTop: 9 }}>载入示例或清空任务都会替换当前数据，请先导出需要保留的记录。</Label><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9, marginTop: 17 }}><Button title="重新体验示例" icon="refresh-cw" variant="secondary" small onPress={() => setConfirm('demo')} /><Button title="清空，开始我的一天" icon="sunrise" variant="ghost" small onPress={() => setConfirm('empty')} /></View></Card>
-    <Label muted style={{ textAlign: 'center', fontSize: 10 }}>留白 0.1.1 · 给今天留一点余地</Label>
+    <Label muted style={{ textAlign: 'center', fontSize: 10 }}>留白 0.2.0 · 给今天留一点余地</Label>
   </View></ScrollView><Confirm visible={!!confirm} title={confirm === 'demo' ? '重新载入示例日程？' : '清空并重新开始？'} description="当前所有任务和调整记录都将被替换。请确认已经导出需要保留的数据。" action={confirm === 'demo' ? '载入示例' : '确认清空'} onClose={() => setConfirm(null)} onConfirm={() => { reset(confirm === 'demo'); setStart(clock(defaultSettings.dayStart)); setEnd(preferenceTime(defaultSettings.dayEnd)); setBuffer(String(defaultSettings.buffer)); setError(''); setConfirm(null); }} /></>;
 }

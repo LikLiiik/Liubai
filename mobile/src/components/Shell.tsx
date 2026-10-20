@@ -21,7 +21,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const inset = useSafeAreaInsets();
   const { data, loading, loadError, reload, saveStatus, toast } = usePlanning();
   const exploreChild = path === '/inbox' ? '收集箱' : path === '/review' ? '回顾' : null;
-  const activePath = exploreChild ? '/explore' : path === '/settings' ? '/me' : path;
+  const activePath = exploreChild ? '/explore' : path === '/settings' || path === '/course-import' ? '/me' : path;
   const current = links.find(link => link.path === activePath) ?? links[0];
   const inboxCount = data.tasks.filter(task => !task.completed && task.date === null).length;
   if (loading || loadError) return <View style={{ flex: 1, backgroundColor: c.bg, alignItems: 'center', justifyContent: 'center', padding: 30 }}>

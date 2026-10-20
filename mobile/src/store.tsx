@@ -19,7 +19,7 @@ type Store = {
   toast: string | null;
   notify: (text: string) => void;
   mutateTasks: (update: (tasks: Task[]) => Task[]) => void;
-  applyPlan: (plan: PlanResult, title: string) => void;
+  applyPlan: (plan: PlanResult, title: string, options?: { demo: boolean }) => void;
   undoPlan: () => void;
   updateSettings: (settings: Settings) => void;
   reset: (demo: boolean) => void;
@@ -41,7 +41,10 @@ function isAppData(value: unknown): value is AppData {
       && (task.start === null || Number.isInteger(task.start) && task.start >= 0 && task.start < 1440)
       && (task.date === null || /^\d{4}-\d{2}-\d{2}$/.test(task.date))
       && (task.deadline === null || /^\d{4}-\d{2}-\d{2}$/.test(task.deadline))
-      && Number.isFinite(task.postponed));
+      && Number.isFinite(task.postponed)
+      && (!task.courseImport || task.courseImport.school === 'hitsz' && typeof task.courseImport.semester === 'string'
+        && typeof task.courseImport.key === 'string' && typeof task.courseImport.fingerprint === 'string'
+        && (task.courseImport.sample === undefined || typeof task.courseImport.sample === 'boolean')));
 }
 
 export function PlanningProvider({ children }: { children: React.ReactNode }) {
@@ -93,10 +96,10 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
     setData(previous => ({ ...previous, tasks: update(previous.tasks) }));
   }, []);
   const today = dateKey(tick);
-  const applyPlan = useCallback((plan: PlanResult, title: string) => {
+  const applyPlan = useCallback((plan: PlanResult, title: string, options?: { demo: boolean }) => {
     if (!plan.valid) return;
-    setData(previous => ({ ...previous, tasks: plan.tasks, history: [{ id: uid(), date: today,
-      createdAt: new Date().toISOString(), title, changes: plan.changes, snapshot: previous.tasks, appliedTasks: plan.tasks }, ...previous.history].slice(0, 20) }));
+    setData(previous => ({ ...previous, demo: options?.demo ?? previous.demo, tasks: plan.tasks, history: [{ id: uid(), date: today,
+      createdAt: new Date().toISOString(), title, changes: plan.changes, snapshot: previous.tasks, snapshotDemo: previous.demo, appliedTasks: plan.tasks }, ...previous.history].slice(0, 20) }));
     notify('新计划已安排好，可以在回顾中撤销。');
   }, [today, notify]);
   const undoPlan = useCallback(() => {
@@ -104,7 +107,7 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
       const latest = previous.history[0];
       if (!latest) return previous;
       if (JSON.stringify(previous.tasks) !== JSON.stringify(latest.appliedTasks)) return previous;
-      return { ...previous, tasks: latest.snapshot, history: previous.history.slice(1) };
+      return { ...previous, demo: latest.snapshotDemo ?? previous.demo, tasks: latest.snapshot, history: previous.history.slice(1) };
     });
   }, []);
   const updateSettings = useCallback((settings: Settings) => setData(previous => ({ ...previous, settings })), []);

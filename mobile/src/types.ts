@@ -17,6 +17,7 @@ export interface Task {
   start: number | null;
   deadline: string | null;
   postponed: number;
+  courseImport?: { school: 'hitsz'; semester: string; key: string; fingerprint: string; sample?: boolean };
 }
 
 export interface Settings {
@@ -42,6 +43,7 @@ export interface PlanHistory {
   changes: Change[];
   snapshot: Task[];
   appliedTasks: Task[];
+  snapshotDemo?: boolean;
 }
 
 export interface AppData {
