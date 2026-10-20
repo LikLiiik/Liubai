@@ -38,7 +38,9 @@ test('preview advances only later flexible events in original order, respecting 
   assert.deepEqual(plan.changes.map(change => change.taskId), ['next', 'later']);
   assert.equal(plan.tasks.find(item => item.id === 'next')!.start, 630);
   assert.equal(plan.tasks.find(item => item.id === 'later')!.start, 710);
-  for (const id of ['current', 'meeting', 'quick', 'inbox', 'tomorrow']) assert.deepEqual(plan.tasks.find(item => item.id === id), source.find(item => item.id === id));
+  for (const id of ['meeting', 'quick', 'inbox', 'tomorrow']) assert.deepEqual(plan.tasks.find(item => item.id === id), source.find(item => item.id === id));
+  assert.deepEqual({ ...plan.tasks[0], completionAdvance: undefined }, { ...source[0], completionAdvance: undefined });
+  assert.equal(plan.tasks[0].completionAdvance!.completedAt, source[0].completedAt);
   assert.equal(JSON.stringify(source), before, 'preview/decline cannot change the actual schedule');
   assert.equal(plan.deferred, 0);
   assert.equal(plan.extension, 0);
@@ -153,7 +155,7 @@ test('80 compacting scenarios only move future flexible tasks earlier and never 
       previousStart = item.start!;
       if (plan.changes.some(change => change.taskId === item.id)) assert.equal(plan.tasks.some(other => other.id !== item.id && overlaps(item, other)), false);
     }
-    assert.deepEqual(plan.tasks[0], source[0]);
+    assert.deepEqual({ ...plan.tasks[0], completionAdvance: undefined }, { ...source[0], completionAdvance: undefined });
     assert.equal(plan.tasks.filter(item => item.id.startsWith('work-')).every(item => relativeStart(item, day)! >= 620), true);
   }
 });

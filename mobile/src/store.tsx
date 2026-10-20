@@ -10,6 +10,7 @@ import { applyPlanToData } from './planApply';
 import { addCategoryToData, knownCategory, type CategoryAddResult } from './categories';
 import { validTaskTiming } from './quick';
 import { createAdvancePlan, setTaskCompletion } from './completion';
+import { completionAdvanceFor, previewCompletionUndo, validCompletionAdvance, type CompletionUndoChoice } from './completionUndo';
 
 type Store = {
   data: AppData;
@@ -29,7 +30,9 @@ type Store = {
   addCategory: (name: string) => CategoryAddResult;
   setCompleted: (id: string, completed: boolean, consentKey?: string) => boolean;
   completionOffer: string | null;
-  completionRestore: { taskId: string; key: string; conflicts: string[] } | null;
+  completionRestore: { taskId: string; key: string; conflicts: string[]; undo?: { choice: CompletionUndoChoice; previewKey: string } } | null;
+  completionUndo: string | null;
+  undoCompletion: (id: string, choice: CompletionUndoChoice, previewKey: string, consentKey?: string) => boolean;
   dismissCompletionOffer: () => void;
   reset: () => void;
   reload: () => void;
@@ -53,6 +56,7 @@ function isAppData(value: unknown): value is AppData {
       && Number.isFinite(task.postponed)
       && (task.inboxReminderAfter === undefined || /^\d{4}-\d{2}-\d{2}$/.test(task.inboxReminderAfter))
       && (task.rescueInterruption === undefined || typeof task.rescueInterruption === 'boolean')
+      && validCompletionAdvance(task.completionAdvance)
       && (!task.courseImport || task.courseImport.school === 'hitsz' && typeof task.courseImport.semester === 'string'
         && typeof task.courseImport.key === 'string' && typeof task.courseImport.fingerprint === 'string'
         && (task.courseImport.sample === undefined || typeof task.courseImport.sample === 'boolean')));
@@ -77,6 +81,7 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
   const [toast, setToast] = useState<string | null>(null);
   const [completionOffer, setCompletionOffer] = useState<string | null>(null);
   const [completionRestore, setCompletionRestore] = useState<Store['completionRestore']>(null);
+  const [completionUndo, setCompletionUndo] = useState<string | null>(null);
   const [tick, setTick] = useState(() => new Date());
   const today = dateKey(tick);
   const timezoneOffset = tick.getTimezoneOffset();
@@ -134,7 +139,9 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
     const moment = new Date();
     let offer = false;
     let restore: Store['completionRestore'] = null;
+    let askUndo = false;
     const changed = commit(previous => {
+      if (!completed && completionAdvanceFor(previous, id)) { askUndo = true; return previous; }
       const result = setTaskCompletion(previous.tasks, id, completed, moment.toISOString(), consentKey);
       if (result.confirmation) restore = { taskId: id, key: result.confirmation.key, conflicts: result.confirmation.conflicts.map(task => task.title) };
       const tasks = result.tasks;
@@ -143,15 +150,37 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
       offer = completed && createAdvancePlan(tasks, previous.settings, id, context.date, context.now).changes.length > 0;
       return { ...previous, tasks };
     });
+    if (askUndo) { setCompletionOffer(null); setCompletionRestore(null); setCompletionUndo(id); }
     if (restore) { setCompletionOffer(null); setCompletionRestore(restore); }
     if (changed) {
+      setCompletionUndo(null);
       setCompletionRestore(null);
       setCompletionOffer(offer ? id : null);
       notify(completed ? '已标记完成。' : '已恢复为待完成。');
     }
     return changed;
   }, [commit, notify]);
-  const dismissCompletionOffer = useCallback(() => { setCompletionOffer(null); setCompletionRestore(null); }, []);
+  const dismissCompletionOffer = useCallback(() => { setCompletionOffer(null); setCompletionRestore(null); setCompletionUndo(null); }, []);
+  const undoCompletion = useCallback((id: string, choice: CompletionUndoChoice, previewKey: string, consentKey?: string) => {
+    let restore: Store['completionRestore'] = null;
+    let message = '';
+    const changed = commit(previous => {
+      const result = previewCompletionUndo(previous, id, choice);
+      if (!result.valid) { message = '此事件的完成状态已变更。'; return previous; }
+      if (result.key !== previewKey) { message = '日程已变化，请重新核对撤销预览。'; return previous; }
+      if (result.conflicts.length && consentKey !== result.consentKey) {
+        restore = { taskId: id, key: result.consentKey, conflicts: result.conflicts.map(task => task.title), undo: { choice, previewKey } };
+        return previous;
+      }
+      message = choice === 'cancel-advance' ? `已撤销完成，${result.changes.length} 项恢复提前前的时间。${result.skipped.length ? '已变更的事项保持当前安排。' : ''}` : '已撤销完成，后续提前保持不变。';
+      return { ...previous, tasks: result.tasks };
+    });
+    if (restore) setCompletionRestore(restore);
+    else if (changed) { setCompletionOffer(null); setCompletionUndo(null); setCompletionRestore(null); }
+    else { setCompletionRestore(null); setCompletionUndo(id); }
+    if (message) notify(message);
+    return changed;
+  }, [commit, notify]);
   const applyPlan = useCallback((plan: PlanResult, title: string, options?: { demo: boolean }) => {
     let error: string | undefined;
     const applied = commit(previous => {
@@ -194,7 +223,7 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
   const planning = planningContext(today, now, data.settings);
   return <Context.Provider value={{ data, loading, loadError, saveStatus, today, now,
     planningDate: planning.date, planningNow: planning.now, toast, notify, mutateTasks, applyPlan,
-    undoPlan, updateSettings, addCategory, setCompleted, completionOffer, completionRestore, dismissCompletionOffer, reset, reload }}>{children}</Context.Provider>;
+    undoPlan, updateSettings, addCategory, setCompleted, completionOffer, completionRestore, completionUndo, undoCompletion, dismissCompletionOffer, reset, reload }}>{children}</Context.Provider>;
 }
 
 export function usePlanning() {

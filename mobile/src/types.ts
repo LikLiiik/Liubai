@@ -3,6 +3,8 @@ export type CategoryDefinition = { id: Category; name: string };
 export type Priority = 'high' | 'normal' | 'low';
 export type NotificationAccess = { status: 'granted' | 'denied' | 'undetermined' | 'unsupported'; canAskAgain: boolean };
 export type ScreenName = 'today' | 'week' | 'explore' | 'inbox' | 'review' | 'me';
+export type CompletionMove = { taskId: string; from: { date: string; start: number }; to: { date: string; start: number }; duration: number; deadline: string | null };
+export type CompletionAdvance = { completedAt: string; moves: CompletionMove[] };
 
 export interface Task {
   kind?: 'task' | 'quick';
@@ -16,6 +18,7 @@ export interface Task {
   fixed: boolean;
   completed: boolean;
   completedAt?: string;
+  completionAdvance?: CompletionAdvance;
   date: string | null;
   start: number | null;
   deadline: string | null;

@@ -8,7 +8,7 @@ import { overlapConsentKey, validDate } from './week.ts';
 export function setTaskCompletion(tasks: Task[], id: string, completed: boolean, at: string, consentKey?: string): { tasks: Task[]; confirmation?: { key: string; conflicts: Task[] } } {
   const task = tasks.find(item => item.id === id);
   if (!task || task.completed === completed || !Number.isFinite(Date.parse(at))) return { tasks };
-  const updated = { ...task, completed, completedAt: completed ? at : undefined };
+  const updated = { ...task, completed, completedAt: completed ? at : undefined, completionAdvance: undefined };
   const conflicts = completed ? [] : tasks.filter(item => item.id !== id && overlaps(updated, item));
   const key = overlapConsentKey(updated, conflicts);
   if (conflicts.length && consentKey !== key) return { tasks, confirmation: { key, conflicts } };
@@ -23,6 +23,7 @@ export function createAdvancePlan(tasks: Task[], settings: Settings, sourceId: s
   if (!source?.completed || !source.completedAt || isQuick(source) || sourceStart === null || sourceStart > now
     || !inPlanningDay(source, date, settings)) return result;
   const candidates = tasks.filter(task => !task.completed && !task.fixed && !isQuick(task) && inPlanningDay(task, date, settings)
+    && Number.isInteger(task.duration) && task.duration > 0 && task.duration <= 720
     && task.start !== null && relativeStart(task, date)! > now && relativeStart(task, date)! > sourceStart)
     .slice().sort((a, b) => relativeStart(a, date)! - relativeStart(b, date)!);
   let next = tasks;
@@ -33,12 +34,20 @@ export function createAdvancePlan(tasks: Task[], settings: Settings, sourceId: s
       .map(other => ({ start: relativeStart(other, date)! - (other.fixed ? 0 : settings.buffer),
         end: relativeStart(other, date)! + occupiedDuration(other) + (other.fixed ? 0 : settings.buffer) }));
     const slot = findSlot(task.duration, cursor, Math.min(originalStart + task.duration, settings.dayEnd, deadlineLimit(task, date)), busy);
-    if (slot !== null && slot < originalStart) {
+    if (slot !== null && Number.isInteger(slot) && slot < originalStart) {
       const updated = { ...task, ...normalizePosition(date, slot) };
       next = next.map(item => item.id === task.id ? updated : item);
       result.changes.push({ taskId: task.id, title: task.title, from: taskPosition(task, date), to: taskPosition(updated, date), reason: '完成前一事项后，按原顺序提前到空闲时段' });
       cursor = slot + task.duration + settings.buffer;
     } else cursor = Math.max(cursor, originalStart + task.duration + settings.buffer);
+  }
+  if (result.changes.length) {
+    const moves = result.changes.map(change => {
+      const before = tasks.find(task => task.id === change.taskId)!;
+      const after = next.find(task => task.id === change.taskId)!;
+      return { taskId: before.id, from: { date: before.date!, start: before.start! }, to: { date: after.date!, start: after.start! }, duration: after.duration, deadline: after.deadline };
+    });
+    next = next.map(task => task.id === sourceId ? { ...task, completionAdvance: { completedAt: source.completedAt!, moves } } : task);
   }
   return { ...result, tasks: next, finish: Math.max(now, ...next.filter(task => !task.completed && !isQuick(task)
     && inPlanningDay(task, date, settings) && task.start !== null).map(task => relativeStart(task, date)! + task.duration)) };

@@ -12,6 +12,7 @@ import { createEmpty } from '../seed';
 import { CategoryPicker } from './CategoryPicker';
 import { parseTime } from '../time';
 import { createAdvancePlan, setTaskCompletion } from '../completion';
+import { previewCompletionUndo } from '../completionUndo';
 export { WeekGuideLesson } from './GuideWeekLesson';
 
 export function CompletionGuideLesson() {
@@ -22,13 +23,19 @@ export function CompletionGuideLesson() {
       { ...base, id: 'guide-fixed', title: '固定会议', start: 960, fixed: true }];
   }, []);
   const [tasks, setTasks] = useState(initial);
-  const [stage, setStage] = useState<'pending' | 'offer' | 'kept' | 'advanced'>('pending');
+  const [stage, setStage] = useState<'pending' | 'offer' | 'kept' | 'advanced' | 'undo' | 'undo-confirm' | 'restored'>('pending');
   const plan = useMemo(() => createAdvancePlan(tasks, { dayStart: 540, dayEnd: 1080, buffer: 10 }, 'guide-current', '2026-10-21', 860), [tasks]);
+  const undoKeep = previewCompletionUndo({ tasks, history: [] }, 'guide-current', 'keep');
+  const undoCancel = previewCompletionUndo({ tasks, history: [] }, 'guide-current', 'cancel-advance');
+  function undo() {
+    if (stage === 'advanced') setStage('undo');
+    else if (stage === 'kept') { setTasks(undoKeep.tasks); setStage('restored'); }
+  }
   return <View style={{ marginTop: 20, padding: 16, backgroundColor: c.bg, borderRadius: 13, gap: 12 }}>
     <View style={{ alignSelf: 'flex-start' }}><Badge title="教学演示 · 不改变日程" tone="neutral" /></View>
     <Label muted style={{ fontSize: 12 }}>现在是 14:20，试着勾选当前事项。</Label>
     <Pressable accessibilityRole="checkbox" accessibilityLabel="演示：当前事件已完成" accessibilityState={{ checked: tasks[0].completed }}
-      onPress={() => { if (stage === 'pending') { setTasks(setTaskCompletion(tasks, 'guide-current', true, new Date('2026-10-21T14:20:00').toISOString()).tasks); setStage('offer'); } }}
+      onPress={() => { if (stage === 'pending') { setTasks(setTaskCompletion(tasks, 'guide-current', true, new Date('2026-10-21T14:20:00').toISOString()).tasks); setStage('offer'); } else undo(); }}
       style={{ minHeight: 44, flexDirection: 'row', gap: 8, alignItems: 'center' }}>
       <Icon name={tasks[0].completed ? 'check-square' : 'square'} color={c.purple} /><Label style={{ fontSize: 13 }}>整理资料 · {tasks[0].completed ? '已完成' : '进行中'}</Label>
     </Pressable>
@@ -38,7 +45,18 @@ export function CompletionGuideLesson() {
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}><Button title="演示：保持原安排" small variant="ghost" onPress={() => setStage('kept')} />
         <Button title="演示：确认提前" small onPress={() => { setTasks(plan.tasks); setStage('advanced'); }} /></View>
     </View>}
-    {(stage === 'kept' || stage === 'advanced') && <><Label accessibilityLiveRegion="polite" muted style={{ fontSize: 12 }}>{stage === 'kept' ? '已记录完成，后续时间保持原样。' : '后续任务已提前，16:00 的固定会议保持不变。'}</Label><Button title="重新体验完成选择" small variant="ghost" onPress={() => { setTasks(initial); setStage('pending'); }} /></>}
+    {(stage === 'kept' || stage === 'advanced') && <><Label accessibilityLiveRegion="polite" muted style={{ fontSize: 12 }}>{stage === 'kept' ? '已记录完成，后续时间保持原样。' : '后续任务已提前，16:00 的固定会议保持不变。'}</Label><Button title="演示：撤销完成" variant="secondary" small onPress={undo} /></>}
+    {stage === 'undo' && <View style={{ gap: 8 }}><Label style={{ fontSize: 12 }}>撤销完成，要一并取消后续提前吗？</Label>
+      <Button title="演示：一并取消提前" small onPress={() => { setTasks(undoCancel.tasks); setStage('restored'); }} />
+      <Button title="演示：只撤销完成，保留提前" variant="secondary" small onPress={() => setStage('undo-confirm')} />
+      <Button title="演示：返回" variant="ghost" small onPress={() => setStage('advanced')} />
+    </View>}
+    {stage === 'undo-confirm' && <View style={{ gap: 8 }}><Label style={{ fontSize: 12 }}>保留 14:30 的邮件任务，会与恢复后的资料整理重叠，需要再次确认。</Label>
+      <Button title="演示：确认恢复并保留重叠" small onPress={() => { setTasks(undoKeep.tasks); setStage('restored'); }} />
+      <Button title="演示：返回选择" variant="ghost" small onPress={() => setStage('undo')} />
+    </View>}
+    {stage === 'restored' && <Label accessibilityLiveRegion="polite" muted style={{ fontSize: 12 }}>已撤销完成，后续时刻按刚才的选择保留。</Label>}
+    {(stage === 'kept' || stage === 'advanced' || stage === 'restored') && <Button title="重新体验完成选择" small variant="ghost" onPress={() => { setTasks(initial); setStage('pending'); }} />}
   </View>;
 }
 

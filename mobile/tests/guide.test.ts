@@ -93,8 +93,16 @@ test('v7 users start with completion choices while retaining their earlier guide
   const previous = { ...freshGuideProgress(), revision: 7, completedRevision: 7, deferredRevision: 7 };
   assert.equal(shouldShowGuide(previous), true);
   assert.equal(guideStartStep(previous), 'completion');
-  assert.equal(GUIDE_STEPS.find(step => step.id === 'completion')!.introduced, 8);
+  assert.equal(GUIDE_STEPS.find(step => step.id === 'completion')!.introduced, 9);
   assert.equal(visitGuideStep(previous, 'completion').completedRevision, 7);
+});
+
+test('v8 users receive the revised completion-undo choices without losing their guide history', () => {
+  const previous = { ...freshGuideProgress(), revision: 8, completedRevision: 8, deferredRevision: 8 };
+  assert.equal(shouldShowGuide(previous), true);
+  assert.equal(guideStartStep(previous), 'completion');
+  assert.equal(visitGuideStep(previous, 'completion').completedRevision, 8);
+  assert.ok(GUIDE_STEPS.find(step => step.id === 'completion')!.tips.join('').includes('撤销完成'));
 });
 
 test('missing or damaged progress recovers without crashing and removed step IDs retain completion history', () => {
