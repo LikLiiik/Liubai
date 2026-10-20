@@ -118,8 +118,8 @@ export default function Week() {
     const result = moveTaskTo(data.tasks, task.id, position, data.settings, today, allowFixed, allowOutsidePreferences, allowOverlap);
     if (!result.ok) return result.error;
     if (!result.change) { notify('仍在原来的位置，没有修改日程。'); return null; }
-    applyPlan({ tasks: result.tasks, changes: [result.change], warnings: result.warnings,
-      valid: true, deferred: 0, finish: position.start + task.duration, extension: 0 }, `周览调整：${task.title}`);
+    if (!applyPlan({ sourceTasks: data.tasks, sourceSettings: data.settings, tasks: result.tasks, changes: [result.change], warnings: result.warnings,
+      valid: true, deferred: 0, finish: position.start + task.duration, extension: 0 }, `周览调整：${task.title}`)) return '日程已变更，请重新选择位置。';
     notify(`已移到 ${position.date.slice(5).replace('-', '/')} ${clock(position.start)}${task.fixed ? '，已重新锁定' : ''}。${result.warnings.length ? result.warnings.join('；') : '可在回顾中撤销。'}`);
     return null;
   }

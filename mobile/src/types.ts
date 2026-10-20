@@ -20,6 +20,7 @@ export interface Task {
   postponed: number;
   courseImport?: { school: 'hitsz'; semester: string; key: string; fingerprint: string; sample?: boolean };
   inboxReminderAfter?: string;
+  rescueInterruption?: boolean;
 }
 
 export interface Settings {
@@ -71,6 +72,8 @@ export interface RescueRequest {
 }
 
 export interface PlanResult {
+  sourceTasks?: Task[];
+  sourceSettings?: Settings;
   tasks: Task[];
   changes: Change[];
   warnings: string[];

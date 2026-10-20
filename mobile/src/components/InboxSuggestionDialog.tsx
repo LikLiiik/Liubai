@@ -16,7 +16,7 @@ export function InboxSuggestionDialog({ taskId, onClose, preview = false }: { ta
   function accept() {
     const plan = taskId && acceptInboxSuggestion(data, taskId, localMoment(today, now));
     if (!plan || !enabled) { notify('当前没有合适的空闲时段，任务仍保留在收集箱。'); return; }
-    applyPlan(plan, '空闲提醒：安排收集箱待办'); onClose();
+    if (applyPlan(plan, '空闲提醒：安排收集箱待办')) onClose();
   }
   function later() {
     if (taskId && task && task.date === null && !task.completed) mutateTasks(tasks => tasks.map(item => item.id === taskId ? { ...item, inboxReminderAfter: shiftDate(today, 3) } : item));

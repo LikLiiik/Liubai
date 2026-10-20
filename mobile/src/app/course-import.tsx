@@ -53,7 +53,7 @@ export default function CourseImport() {
   function importNow() {
     setConfirmImport(false);
     if (!canImport || !preview) { setError('课表或日程已变更，请重新检查预览。'); return; }
-    applyPlan(preview, `导入课表 · ${semesterKey}`, { demo: false });
+    if (!applyPlan(preview, `导入课表 · ${semesterKey}`, { demo: false })) { setError('日程已变更，请重新检查预览。'); return; }
     setImportedCounts(`新增 ${preview.added} · 更新 ${preview.updated} · 移除 ${preview.removed}`);
     const dates = preview.tasks.filter(task => task.courseImport?.semester === semesterKey).map(task => task.date!).sort();
     setImportedDate(dates.find(date => date >= today) ?? dates[0] ?? today);

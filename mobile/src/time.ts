@@ -91,7 +91,7 @@ export function planningContext(date: string, now: number, settings: Settings): 
 }
 
 export function deadlineLimit(task: Task, date: string): number {
-  return task.deadline ? Math.max(1, daysBetween(task.deadline, date) + 1) * 1440 : Infinity;
+  return task.deadline ? Math.max(0, daysBetween(task.deadline, date) + 1) * 1440 : Infinity;
 }
 
 export function overlaps(a: Task, b: Task): boolean {

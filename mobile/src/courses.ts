@@ -159,7 +159,7 @@ export function expandCourses(courses: Course[], semester: Semester, sample = fa
 }
 
 export function previewCourseImport(original: Task[], incoming: Task[], semester: string, mode: 'merge' | 'sync', today: string): CoursePreview {
-  const result: CoursePreview = { tasks: original.slice(), changes: [], warnings: [], deferred: 0, finish: 0, extension: 0, valid: true,
+  const result: CoursePreview = { sourceTasks: original, tasks: original.slice(), changes: [], warnings: [], deferred: 0, finish: 0, extension: 0, valid: true,
     added: 0, updated: 0, removed: 0, unchanged: 0, protected: 0, conflicts: [] };
   const eligible = original.filter(task => task.courseImport?.school === 'hitsz' && task.courseImport.semester === semester);
   const originalById = new Map(original.map(task => [task.id, task]));

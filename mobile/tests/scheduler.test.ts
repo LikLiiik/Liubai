@@ -204,3 +204,81 @@ test('automatic interruption insertion cannot create an overlap with completed t
   assert.deepEqual(plan.tasks.find(item => item.id === completed.id), completed);
   assert.ok(plan.warnings.some(message => message.includes('已完成事项')));
 });
+
+test('another interruption extends the active rescue block without duplicate IDs or overlapping tasks', () => {
+  const first = createPlan([task('work', { duration: 60 })], settings, request());
+  const second = createPlan(first.tasks, settings, request({ minutes: 15, now: 845 }));
+  assert.equal(second.valid, true);
+  const block = second.tasks.find(item => item.id.startsWith('interruption-'))!;
+  assert.equal(block.start, 840);
+  assert.equal(block.duration, 45);
+  assert.equal(second.tasks.length, first.tasks.length);
+  noOverlaps(second.tasks);
+  const third = createPlan(second.tasks, settings, request({ minutes: 15, now: 845 }));
+  assert.equal(third.valid, true);
+  assert.equal(third.tasks.find(item => item.id === block.id)!.duration, 60);
+  assert.equal(new Set(third.tasks.map(item => item.id)).size, third.tasks.length);
+  noOverlaps(third.tasks);
+});
+
+test('extending an active interruption still protects meetings and completed blocks', () => {
+  const first = createPlan([], settings, request());
+  const meeting = task('meeting', { fixed: true, start: 880 });
+  const result = createPlan([...first.tasks, meeting], settings, request({ minutes: 30, now: 845 }));
+  assert.equal(result.valid, false);
+  assert.deepEqual(result.tasks.find(item => item.id === meeting.id), meeting);
+});
+
+test('an interruption before preferred work hours starts now, while automatic work waits for preferences', () => {
+  const result = createPlan([task('work', { start: null })], settings, request({ now: 480 }));
+  assert.equal(result.valid, true);
+  assert.equal(result.tasks.find(item => item.id.startsWith('interruption-'))!.start, 480);
+  assert.equal(result.tasks.find(item => item.id === 'work')!.start, 540);
+});
+
+test('expired deadlines cannot be silently rescheduled to today', () => {
+  const due = task('overdue', { start: null, deadline: '2026-10-18' });
+  assert.equal(scheduleTask([due], due.id, settings, today, 840), null);
+  assert.equal(createPlan([due], settings, request({ reason: 'rebalance' })).valid, false);
+});
+
+test('legacy rescue blocks can be extended, while an expired block starts a separate interruption', () => {
+  const legacy = task('interruption-2026-10-19-840', { title: '临时事项', notes: '通过一键救场加入', fixed: true, start: 840 });
+  const extended = createPlan([legacy], settings, request({ now: 845, minutes: 15 }));
+  assert.equal(extended.valid, true);
+  assert.equal(extended.tasks[0].duration, 45);
+  assert.equal(legacy.duration, 30);
+  const later = createPlan(extended.tasks, settings, request({ now: 900 }));
+  assert.equal(later.valid, true);
+  assert.equal(later.tasks.length, 2);
+  assert.equal(later.tasks[1].start, 900);
+  assert.equal(new Set(later.tasks.map(item => item.id)).size, 2);
+  const manual = task('personal', { title: '临时事项', fixed: true });
+  assert.equal(createPlan([manual], settings, request()).valid, false);
+});
+
+test('remaining duration is replaced on each overrun instead of accumulating, and oversized extension is blocked', () => {
+  const first = createPlan([task('work', { duration: 90 })], settings, request({ reason: 'overrun', taskId: 'work', minutes: 45 }));
+  const second = createPlan(first.tasks, settings, request({ reason: 'overrun', taskId: 'work', minutes: 20, now: 850 }));
+  assert.equal(second.valid, true);
+  assert.equal(second.tasks[0].duration, 20);
+  assert.equal(second.tasks[0].start, 850);
+  const long = createPlan([], { ...settings, dayStart: 0, dayEnd: 1440 }, request({ now: 0, minutes: 720 }));
+  assert.equal(long.valid, true);
+  assert.equal(createPlan(long.tasks, { ...settings, dayStart: 0, dayEnd: 1440 }, request({ now: 15, minutes: 30 })).valid, false);
+});
+
+test('repeated rescues across midnight extend one block and keep real dates and fixed next-day meetings', () => {
+  const overnight = { ...settings, dayEnd: 1800 };
+  const meeting = task('tomorrow-meeting', { date: '2026-10-20', start: 120, fixed: true });
+  const first = createPlan([meeting, task('work')], overnight, request({ now: 1410, minutes: 60 }));
+  assert.equal(first.valid, true);
+  const second = createPlan(first.tasks, overnight, request({ now: 1450, minutes: 30 }));
+  assert.equal(second.valid, true);
+  const block = second.tasks.find(item => item.rescueInterruption)!;
+  assert.deepEqual([block.date, block.start, block.duration], [today, 1410, 90]);
+  assert.deepEqual(second.tasks.find(item => item.id === meeting.id), meeting);
+  for (const item of second.tasks.filter(item => !item.fixed)) {
+    assert.equal(second.tasks.some(other => other.id !== item.id && overlaps(item, other)), false);
+  }
+});

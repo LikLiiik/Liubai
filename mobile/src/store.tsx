@@ -6,6 +6,7 @@ import { createEmpty, personalData } from './seed';
 import { dateKey, uid } from './utils';
 import { syncNotifications } from './notifications';
 import { planningContext, validSettings } from './time';
+import { applyPlanToData } from './planApply';
 
 type Store = {
   data: AppData;
@@ -18,8 +19,8 @@ type Store = {
   planningNow: number;
   toast: string | null;
   notify: (text: string) => void;
-  mutateTasks: (update: (tasks: Task[]) => Task[]) => void;
-  applyPlan: (plan: PlanResult, title: string, options?: { demo: boolean }) => void;
+  mutateTasks: (update: (tasks: Task[]) => Task[]) => boolean;
+  applyPlan: (plan: PlanResult, title: string, options?: { demo: boolean }) => boolean;
   undoPlan: () => void;
   updateSettings: (settings: Settings) => void;
   reset: () => void;
@@ -43,6 +44,7 @@ function isAppData(value: unknown): value is AppData {
       && (task.deadline === null || /^\d{4}-\d{2}-\d{2}$/.test(task.deadline))
       && Number.isFinite(task.postponed)
       && (task.inboxReminderAfter === undefined || /^\d{4}-\d{2}-\d{2}$/.test(task.inboxReminderAfter))
+      && (task.rescueInterruption === undefined || typeof task.rescueInterruption === 'boolean')
       && (!task.courseImport || task.courseImport.school === 'hitsz' && typeof task.courseImport.semester === 'string'
         && typeof task.courseImport.key === 'string' && typeof task.courseImport.fingerprint === 'string'
         && (task.courseImport.sample === undefined || typeof task.courseImport.sample === 'boolean')));
@@ -50,6 +52,17 @@ function isAppData(value: unknown): value is AppData {
 
 export function PlanningProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<AppData>(createEmpty);
+  const currentData = useRef(data);
+  // Commit event handlers against the latest value even before React renders a
+  // preceding tap. This prevents duplicate submits and stale whole-plan writes.
+  const commit = useCallback((update: (previous: AppData) => AppData) => {
+    const previous = currentData.current;
+    const next = update(previous);
+    if (next === previous) return false;
+    currentData.current = next;
+    setData(next);
+    return true;
+  }, []);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'saving' | 'saved' | 'error'>('saving');
@@ -61,15 +74,15 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
   const notify = useCallback((message: string) => setToast(message), []);
   const readData = useCallback(() => {
     return storage.get().then(raw => {
-      if (!raw) setData(createEmpty());
+      if (!raw) commit(() => createEmpty());
       else {
         const parsed: unknown = JSON.parse(raw);
         if (!isAppData(parsed)) throw new Error('本地数据格式无法识别');
-        setData(personalData(parsed));
+        commit(() => personalData(parsed));
       }
       setLoadError(null);
     }).catch(() => setLoadError('暂时无法读取本地数据。你可以重试，原有数据不会被覆盖。')).finally(() => setLoading(false));
-  }, []);
+  }, [commit]);
 
   const reload = useCallback(() => { setLoading(true); setLoadError(null); void readData(); }, [readData]);
   useEffect(() => { void readData(); }, [readData]);
@@ -105,28 +118,32 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
   }, [data, loading, loadError, notify]);
 
   const mutateTasks = useCallback((update: (tasks: Task[]) => Task[]) => {
-    setData(previous => ({ ...previous, tasks: update(previous.tasks) }));
-  }, []);
+    return commit(previous => { const tasks = update(previous.tasks); return tasks === previous.tasks ? previous : { ...previous, tasks }; });
+  }, [commit]);
   const applyPlan = useCallback((plan: PlanResult, title: string, options?: { demo: boolean }) => {
-    if (!plan.valid) return;
-    setData(previous => ({ ...previous, demo: options?.demo ?? previous.demo, tasks: plan.tasks, history: [{ id: uid(), date: today,
-      createdAt: new Date().toISOString(), title, changes: plan.changes, snapshot: previous.tasks, snapshotDemo: previous.demo, appliedTasks: plan.tasks }, ...previous.history].slice(0, 20) }));
-    notify('新计划已安排好，可以在回顾中撤销。');
-  }, [today, notify]);
+    let error: string | undefined;
+    const applied = commit(previous => {
+      const result = applyPlanToData(previous, plan, { id: uid(), date: today, createdAt: new Date().toISOString(), title }, options?.demo ?? previous.demo);
+      error = result.error;
+      return result.data;
+    });
+    notify(error ?? '新计划已安排好，可以在回顾中撤销。');
+    return applied;
+  }, [today, notify, commit]);
   const undoPlan = useCallback(() => {
-    setData(previous => {
+    commit(previous => {
       const latest = previous.history[0];
       if (!latest) return previous;
       if (JSON.stringify(previous.tasks) !== JSON.stringify(latest.appliedTasks)) return previous;
       return { ...previous, demo: latest.snapshotDemo ?? previous.demo, tasks: latest.snapshot, history: previous.history.slice(1) };
     });
-  }, []);
-  const updateSettings = useCallback((settings: Settings) => setData(previous => ({ ...previous, settings })), []);
+  }, [commit]);
+  const updateSettings = useCallback((settings: Settings) => { commit(previous => ({ ...previous, settings })); }, [commit]);
   const reset = useCallback(() => {
     setLoadError(null);
-    setData(previous => createEmpty(previous.settings));
+    commit(previous => createEmpty(previous.settings));
     notify('空白的一天，准备好了。');
-  }, [notify]);
+  }, [notify, commit]);
 
   const now = data.demo ? 840 : tick.getHours() * 60 + tick.getMinutes();
   const planning = planningContext(today, now, data.settings);

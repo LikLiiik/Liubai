@@ -1,6 +1,7 @@
 import type { Change, PlanMode, PlanResult, RescueRequest, Settings, Task } from './types.ts';
 import { clock, nextDay, taskPosition } from './utils.ts';
 import { deadlineLimit, inPlanningDay, LATEST_END, normalizePosition, relativeStart, validSettings } from './time.ts';
+import { validDate } from './week.ts';
 
 type Interval = { start: number; end: number };
 
@@ -41,12 +42,21 @@ function compareTasks(a: Task, b: Task, mode: PlanMode, date: string): number {
   return (relativeStart(a, date) ?? 1440) - (relativeStart(b, date) ?? 1440);
 }
 
+export function activeInterruption(tasks: Task[], date: string, now: number): Task | undefined {
+  return tasks.find(task => task.fixed && !task.completed && task.date && task.start !== null
+    && (task.rescueInterruption === true || /^interruption-\d{4}-\d{2}-\d{2}-\d+$/.test(task.id)
+      && task.title === '临时事项' && task.notes === '通过一键救场加入')
+    && relativeStart(task, date)! <= now && relativeStart(task, date)! + task.duration > now);
+}
+
 export function createPlan(original: Task[], settings: Settings, request: RescueRequest): PlanResult {
   const tasks = original.map(task => ({ ...task }));
   if (!Number.isInteger(request.now) || request.now < 0 || request.now >= LATEST_END
     || !Number.isInteger(request.minutes) || request.minutes < 5 || request.minutes > 720
-    || !validSettings(settings)) {
-    return { tasks, changes: [], warnings: ['时间参数无效，请检查时长和一天的边界。'], deferred: 0, finish: 0, extension: 0, valid: false };
+    || !validSettings(settings) || !validDate(request.date)
+    || !['interruption', 'overrun', 'lowEnergy', 'rebalance'].includes(request.reason)
+    || !['balanced', 'boundary', 'focus'].includes(request.mode)) {
+    return { sourceTasks: original, sourceSettings: settings, tasks, changes: [], warnings: ['时间参数无效，请检查时长和一天的边界。'], deferred: 0, finish: 0, extension: 0, valid: false };
   }
   const warnings: string[] = [];
   const changes: Change[] = [];
@@ -58,17 +68,31 @@ export function createPlan(original: Task[], settings: Settings, request: Rescue
   const limit = Math.min(settings.dayEnd > 1440 ? LATEST_END : 1440, settings.dayEnd + extensionLimit);
 
   if (request.reason === 'interruption') {
-    const end = now + request.minutes;
-    const collisions = tasks.filter(t => (t.fixed || t.completed) && relativeStart(t, date) !== null && relativeStart(t, date)! < end && relativeStart(t, date)! + t.duration > now);
+    const active = activeInterruption(tasks, date, request.now);
+    const start = active ? relativeStart(active, date)! + active.duration : request.now;
+    const end = start + request.minutes;
+    const collisions = tasks.filter(t => t.id !== active?.id && (t.fixed || t.completed) && relativeStart(t, date) !== null && relativeStart(t, date)! < end && relativeStart(t, date)! + t.duration > start);
     if (end > (settings.dayEnd > 1440 ? LATEST_END : 1440)) { warnings.push('临时事项超出当前一天的范围，请调整时长。'); valid = false; }
+    if (active && active.duration + request.minutes > 720) { warnings.push('单项临时事项累计不能超过 12 小时，请先结束当前事项。'); valid = false; }
     if (collisions.length) {
       warnings.push(`临时事项与已保留事项「${collisions.map(t => t.title).join('、')}」冲突，请先处理固定或已完成事项。`);
       valid = false;
     }
-    tasks.push({ id: `interruption-${date}-${now}`, title: '临时事项', notes: '通过一键救场加入', duration: request.minutes,
+    if (active) {
+      active.duration += request.minutes;
+      active.rescueInterruption = true;
+      const previous = original.find(task => task.id === active.id)!;
+      changes.push({ taskId: active.id, title: active.title, from: `${clock(relativeStart(previous, date)!)}–${clock(start)}`,
+        to: `${clock(relativeStart(active, date)!)}–${clock(end)}`, reason: `继续预留 ${request.minutes} 分钟` });
+    } else {
+      const baseId = `interruption-${date}-${request.now}`;
+      let id = baseId, suffix = 1;
+      while (tasks.some(task => task.id === id)) id = `${baseId}-${suffix++}`;
+      tasks.push({ id, title: '临时事项', notes: '通过一键救场加入', duration: request.minutes, rescueInterruption: true,
       category: 'work', priority: 'high', important: false, fixed: true, completed: false,
-      ...normalizePosition(date, now), deadline: null, postponed: 0 });
-    changes.push({ taskId: `interruption-${date}-${now}`, title: '临时事项', from: '新增', to: `今天 ${clock(now)}–${clock(end)}`, reason: '先为临时事项预留时间' });
+      ...normalizePosition(date, request.now), deadline: null, postponed: 0 });
+      changes.push({ taskId: id, title: '临时事项', from: '新增', to: `今天 ${clock(request.now)}–${clock(end)}`, reason: '先为临时事项预留时间' });
+    }
   }
 
   if (request.reason === 'overrun') {
@@ -103,7 +127,8 @@ export function createPlan(original: Task[], settings: Settings, request: Rescue
     const slot = task.duration <= effortBudget ? findSlot(task.duration, now, Math.min(limit, deadlineLimit(task, date)), occupied) : null;
     if (slot === null) {
       if (task.deadline && task.deadline <= date) {
-        warnings.push(`「${task.title}」今天到期，但剩余时间无法容纳；需要减少其他任务或调整截止时间。`);
+        warnings.push(task.deadline < date ? `「${task.title}」已超过截止日期 ${task.deadline}，请先调整截止日期。`
+          : `「${task.title}」今天到期，但剩余时间无法容纳；需要减少其他任务或调整截止时间。`);
         valid = false;
         task.date = date;
         task.start = null;
@@ -128,15 +153,17 @@ export function createPlan(original: Task[], settings: Settings, request: Rescue
     }
   }
   const scheduled = tasks.filter(t => inPlanningDay(t, date, settings) && t.start !== null && !t.completed);
-  const finish = Math.max(now, ...scheduled.map(t => relativeStart(t, date)! + t.duration));
+  const finish = Math.max(request.now, ...scheduled.map(t => relativeStart(t, date)! + t.duration));
   const extension = Math.max(0, finish - settings.dayEnd);
   if (extension) warnings.push(`该方案预计比结束时间晚 ${extension} 分钟。`);
-  return { tasks, changes, warnings, deferred, finish, extension, valid };
+  return { sourceTasks: original, sourceSettings: settings, tasks, changes, warnings, deferred, finish, extension, valid };
 }
 
 export function scheduleTask(tasks: Task[], taskId: string, settings: Settings, date: string, now: number): Task[] | null {
   const task = tasks.find(item => item.id === taskId);
-  if (!task || task.fixed || task.completed || !validSettings(settings) || !Number.isFinite(now)) return null;
+  if (!task || task.fixed || task.completed || !validSettings(settings) || !Number.isInteger(now) || now < 0 || now >= LATEST_END
+    || !validDate(date) || !Number.isInteger(task.duration) || task.duration < 5 || task.duration > 720
+    || tasks.filter(item => item.id === taskId).length !== 1) return null;
   const occupied = tasks.filter(t => t.id !== taskId && t.date && t.start !== null)
     .map(t => ({ start: relativeStart(t, date)! - (t.fixed ? 0 : settings.buffer), end: relativeStart(t, date)! + t.duration + (t.fixed ? 0 : settings.buffer) }));
   const slot = findSlot(task.duration, Math.max(now, settings.dayStart), Math.min(settings.dayEnd, deadlineLimit(task, date)), occupied);

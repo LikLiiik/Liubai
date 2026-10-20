@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, useWindowDimensions, View } from 'react-native';
 import { colors as c } from '../theme';
 import { usePlanning } from '../store';
-import { createPlan } from '../scheduler';
+import { activeInterruption, createPlan } from '../scheduler';
 import { clock } from '../utils';
 import { inPlanningDay } from '../time';
 import { TimeField } from './TimeField';
@@ -23,13 +23,14 @@ export function RescueDialog({ visible, initialReason = 'interruption', onClose 
   const [duration, setDuration] = useState(durationTime(30));
   const minutes = reason === 'interruption' || reason === 'overrun' ? parseDuration(duration) ?? 0 : 30;
   const [mode, setMode] = useState<PlanMode>('boundary');
+  const active = activeInterruption(data.tasks, today, now);
   const candidates = data.tasks.filter(task => inPlanningDay(task, today, data.settings) && !task.completed && !task.fixed);
   const [taskId, setTaskId] = useState(candidates[0]?.id);
   const plan = useMemo(() => createPlan(data.tasks, data.settings, { reason, minutes, mode, taskId, now, date: today }), [data, reason, minutes, mode, taskId, now, today]);
   return <Dialog visible={visible} wide title="计划变了，我们重新安排" subtitle="固定事项保持原时间。每一项取舍，都先让你看见。" onClose={onClose}
     footer={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, justifyContent: 'space-between', flexWrap: 'wrap' }}>
       <View style={{ flex: 1, minWidth: 150 }}><Label style={{ fontSize: 12 }}>{plan.valid ? `${plan.deferred} 项移到明天 · ${clock(plan.finish)} 结束` : '存在需要处理的冲突'}</Label><Label muted style={{ fontSize: 10 }}>套用后可在「回顾」撤销</Label></View>
-      <Button title="先不调整" variant="ghost" small onPress={onClose} /><Button title="就按这个安排" icon="check" disabled={!plan.valid || !plan.changes.length} onPress={() => { applyPlan(plan, reason === 'interruption' ? `临时有事 ${minutes} 分钟` : reason === 'overrun' ? `任务还需 ${minutes} 分钟` : reason === 'rebalance' ? '重新安排今天' : '今天放慢一点'); onClose(); }} />
+      <Button title="先不调整" variant="ghost" small onPress={onClose} /><Button title="就按这个安排" icon="check" disabled={!plan.valid || !plan.changes.length} onPress={() => { if (applyPlan(plan, reason === 'interruption' ? `${active ? '续加临时事项' : '临时有事'} ${minutes} 分钟` : reason === 'overrun' ? `任务还需 ${minutes} 分钟` : reason === 'rebalance' ? '重新安排今天' : '今天放慢一点')) onClose(); }} />
     </View>}>
     <FieldTitle>发生了什么</FieldTitle><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
       <Chip title="临时有事" icon="zap" selected={reason === 'interruption'} onPress={() => setReason('interruption')} />
@@ -38,7 +39,7 @@ export function RescueDialog({ visible, initialReason = 'interruption', onClose 
       <Chip title="只重新安排" icon="shuffle" selected={reason === 'rebalance'} onPress={() => setReason('rebalance')} />
     </View>
     {reason === 'overrun' && <><FieldTitle>哪件事还需要时间</FieldTitle><View style={{ gap: 7 }}>{candidates.length ? candidates.map(task => <Chip key={task.id} title={task.title} selected={taskId === task.id} onPress={() => setTaskId(task.id)} />) : <Label muted>今天没有尚未完成的灵活任务。</Label>}</View></>}
-    {reason === 'interruption' || reason === 'overrun' ? <><FieldTitle>{reason === 'overrun' ? '从现在起，还需要多久？' : `从 ${clock(now)} 开始，占用多久？`}</FieldTitle><View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>{[15, 30, 60, 90].map(value => <Chip key={value} title={`${value} 分钟`} selected={minutes === value} onPress={() => setDuration(durationTime(value))} />)}</View>
+    {reason === 'interruption' || reason === 'overrun' ? <><FieldTitle>{reason === 'overrun' ? '从现在起，还需要多久？' : active ? '当前临时事项，再增加多久？' : `从 ${clock(now)} 开始，占用多久？`}</FieldTitle><View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>{[15, 30, 60, 90].map(value => <Chip key={value} title={`${value} 分钟`} selected={minutes === value} onPress={() => setDuration(durationTime(value))} />)}</View>
       <View style={{ marginTop: 10 }}><TimeField label="救场时长" value={duration} onChangeText={setDuration} mode="duration" min={5} max={720} fallback={30} /></View>
       {reason === 'overrun' && <Label muted style={{ fontSize: 11, marginTop: 8 }}>按你确认的剩余时长重新安排，不把经过的时间自动视为已完成。</Label>}</>
       : <View style={{ backgroundColor: c.greenBg, borderRadius: 10, padding: 13, marginTop: 15 }}><Label style={{ color: c.green, fontSize: 12 }}>{reason === 'lowEnergy' ? '把剩余空闲时间的一半留给休息。任务不会被擅自缩短。' : '从现在开始重新安排未完成任务，不新增临时事项。'}</Label></View>}

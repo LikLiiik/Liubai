@@ -151,7 +151,7 @@ export function acceptInboxSuggestion(data: AppData, taskId: string, moment: Dat
   if (!suggestion) return null;
   const task = suggestion.task;
   const position = normalizePosition(suggestion.planningDate, Math.ceil(minuteOn(suggestion.planningDate, new Date(suggestion.at))));
-  return { tasks: data.tasks.map(item => item.id === task.id ? { ...item, ...position, inboxReminderAfter: undefined } : item),
+  return { sourceTasks: data.tasks, sourceSettings: data.settings, tasks: data.tasks.map(item => item.id === task.id ? { ...item, ...position, inboxReminderAfter: undefined } : item),
     changes: [{ taskId, title: task.title, from: '收集箱', to: `${position.date} ${clock(position.start)}`, reason: '用户确认空闲时段待办提醒' }],
     warnings: [], deferred: 0, finish: position.start + task.duration, extension: 0, valid: true };
 }

@@ -56,6 +56,14 @@ test('users who completed the published v2 guide see the corrected hands-on less
   assert.equal(visitGuideStep(previous, 'week').completedRevision, 2);
 });
 
+test('users who completed v3 see revised task and repeated-rescue teaching without losing prior progress', () => {
+  const previous = { ...freshGuideProgress(), revision: 3, completedRevision: 3, deferredRevision: 3 };
+  assert.equal(shouldShowGuide(previous), true);
+  assert.equal(guideStartStep(previous), 'tasks');
+  assert.equal(GUIDE_STEPS.find(step => step.id === 'rescue')!.introduced, 4);
+  assert.equal(visitGuideStep(previous, 'rescue').completedRevision, 3);
+});
+
 test('missing or damaged progress recovers without crashing and removed step IDs retain completion history', () => {
   for (const raw of ['not json', 'null', '[]', '{}', JSON.stringify({ ...freshGuideProgress(), completedRevision: -1 })]) {
     assert.deepEqual(parseGuideProgress(raw), freshGuideProgress());
