@@ -7,19 +7,18 @@ import { clock, dateKey, durationText } from '../utils';
 import { freeMinutes } from '../scheduler';
 import { inPlanningDay, relativeStart } from '../time';
 import type { RescueReason, Task } from '../types';
-import { Badge, Button, Card, Confirm, EmptyState, Icon, Label } from '../components/ui';
+import { Badge, Button, Card, EmptyState, Icon, Label } from '../components/ui';
 import { TaskEditor } from '../components/TaskEditor';
 import { RescueDialog } from '../components/RescueDialog';
 
 export default function Today() {
-  const { data, planningDate: today, planningNow: now, today: calendarToday, mutateTasks, notify, reset } = usePlanning();
+  const { data, planningDate: today, planningNow: now, today: calendarToday, mutateTasks, notify } = usePlanning();
   const { width } = useWindowDimensions();
   const desktop = width >= 1200;
   const compact = width < 600;
   const router = useRouter();
   const [editor, setEditor] = useState<{ task?: Task } | null>(null);
   const [rescue, setRescue] = useState<RescueReason | null>(null);
-  const [confirmStart, setConfirmStart] = useState(false);
   const [showDone, setShowDone] = useState(false);
   const tasks = data.tasks.filter(task => inPlanningDay(task, today, data.settings));
   const timelineTask = (task: Task): Task => ({ ...task, start: relativeStart(task, today) });
@@ -61,10 +60,6 @@ export default function Today() {
         <HeroArt compact={compact} />
       </View>
 
-      {data.demo && <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 14, marginBottom: 4, paddingHorizontal: 2 }}>
-        <Icon name="info" size={12} color={c.faint} /><Label muted style={{ fontSize: 10, flex: 1, minWidth: 160 }}>示例日程 · 模拟时间 14:00，可放心体验调整</Label>
-        <Pressable accessibilityRole="button" accessibilityLabel="开始我的一天" onPress={() => setConfirmStart(true)} style={{ padding: 6 }}><Label style={{ fontSize: 10, color: c.purple }}>开始我的一天 <Icon name="arrow-up-right" size={11} color={c.purple} /></Label></Pressable>
-      </View>}
 
       {!desktop && <View style={{ backgroundColor: '#F0EBF9', borderWidth: 1, borderColor: '#E5DDF2', borderRadius: 13, padding: 15, marginTop: 20, flexDirection: 'row', alignItems: 'center', gap: 11 }}>
         <Icon name="wind" color={c.purple} size={20} /><View style={{ flex: 1 }}><Label style={{ fontSize: 12, fontWeight: '600', color: '#615473' }}>计划赶不上变化？</Label><Label style={{ fontSize: 10, color: '#9586AA' }}>一起安排好接下来。</Label></View><Button title="一键救场" icon="shuffle" small onPress={() => setRescue('interruption')} />
@@ -125,7 +120,6 @@ export default function Today() {
   </ScrollView>
     <TaskEditor visible={!!editor} task={editor?.task} onClose={() => setEditor(null)} />
     {rescue && <RescueDialog visible initialReason={rescue} onClose={() => setRescue(null)} />}
-    <Confirm visible={confirmStart} title="开始属于你的一天" description="这会清空当前示例中的任务和调整记录。接下来，你可以添加自己的真实安排。" action="清空示例，开始规划" onClose={() => setConfirmStart(false)} onConfirm={() => { reset(false); setConfirmStart(false); }} />
   </>;
 }
 

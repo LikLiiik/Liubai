@@ -1,10 +1,10 @@
 // Keep tutorial content, revision and stable step IDs together when adding product features.
-export const GUIDE_REVISION = 1;
+export const GUIDE_REVISION = 2;
 export const GUIDE_STEPS = [
-  { id: 'welcome', introduced: 1, icon: 'feather', title: '给计划留一点余地', summary: '用几步认识留白，按自己的节奏开始。',
-    tips: ['先记下想做的事，再为它找到时间。', '计划有变化时，先看调整方案，再决定是否采用。', '教程可随时退出，在「我的 → 新手指引」继续或重看。'] },
-  { id: 'tasks', introduced: 1, icon: 'plus-circle', title: '先把想做的事记下来', summary: '在「今天」或「周览」点 ＋，添加一件事。',
-    tips: ['填写名称和预计时长，需要时补充优先级、重点和截止日期。', '还没确定时间？先放进「探索 → 收集箱」。', '会议、预约等可设置固定开始时间；普通任务由自动排程寻找空位。'] },
+  { id: 'welcome', introduced: 2, icon: 'feather', title: '给计划留一点余地', summary: '用几步认识留白，按自己的节奏开始。',
+    tips: ['教程中的示例可以放心尝试，不会写入你的日程。', '了解核心操作后，直接开始记录自己的安排。', '教程可随时退出，在「我的 → 新手指引」继续或重看。'] },
+  { id: 'tasks', introduced: 2, icon: 'plus-circle', title: '先把想做的事记下来', summary: '在「今天」或「周览」点 ＋，添加一件事。',
+    tips: ['填写名称和预计时长，需要时补充优先级、重点和截止日期。', '时间和时长可直接填写，或点时钟图标分别滑动「时」「分」；填写后会自动补全。', '还没确定时间？先放进「探索 → 收集箱」。会议、预约可设固定时间；普通任务由自动排程寻找空位。'] },
   { id: 'week', introduced: 1, icon: 'calendar', title: '把一周摆在眼前', summary: '周览按课程表展示一周，滑动查看 00:00–24:00。',
     tips: ['手机长按卡片拖动，可调整时间或移到另一天；点击卡片也能精确填写时间。', '固定事项先确认解锁，只允许移动一次。', '手动重叠或放到非偏好时段时先确认；自动排程仍避开占用时间。'] },
   { id: 'rescue', introduced: 1, icon: 'wind', title: '计划变了，也能接着来', summary: '在「今天」使用一键救场，安排好接下来。',
@@ -15,8 +15,8 @@ export const GUIDE_STEPS = [
     tips: ['保存开始、结束时间和任务间缓冲；结束最晚可到次日 06:00，自动安排会参考这些偏好。', '哈工大（深圳）本科课表：进入课表导入，在手机教务网页登录，核对学期第一周周一和课程后确认。', '学校账号和会话留在内置教务网页，课程作为固定事项参与日程。'] },
   { id: 'permissions', introduced: 1, icon: 'bell', title: '让提醒在合适的时候出现', summary: '通知权限用于日程开始提醒和收集箱空闲提醒，可分别选择。',
     tips: ['点击下面的按钮后，手机才会请求通知权限。', '暂不开启也能继续使用，之后可在「我的」调整。'] },
-  { id: 'ready', introduced: 1, icon: 'check-circle', title: '准备好，开始自己的节奏', summary: '核心功能认识了，之后也能随时回来查看。',
-    tips: ['首次进入是示例体验，不发送日程通知。准备记录自己的任务时，在「今天」选择「开始我的一天」并确认清空示例。', '在「我的 → 检查更新」获取已发布版本。下载后由系统确认安装，按需允许浏览器安装该更新包。', '重要日程可在「我的」导出备份；数据保存在本机，卸载或清除应用数据会移除记录。'] },
+  { id: 'ready', introduced: 2, icon: 'check-circle', title: '准备好，开始自己的节奏', summary: '完成教程，直接进入自己的日程。',
+    tips: ['示例只留在教程中。第一次使用从空白日程开始，已有任务和偏好会保留，重看教程也不会清空。', '在「我的 → 检查更新」获取已发布版本。下载后由系统确认安装，按需允许浏览器安装该更新包。', '重要日程可在「我的」导出备份；数据保存在本机，卸载或清除应用数据会移除记录。'] },
 ] as const;
 export type GuideStepId = typeof GUIDE_STEPS[number]['id'];
 export type GuideProgress = { version: 1; revision: number; stepId: GuideStepId; completedRevision: number; deferredRevision: number };

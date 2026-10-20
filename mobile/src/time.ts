@@ -68,7 +68,7 @@ export function validSettings(settings: Settings): boolean {
     && Number.isInteger(settings.dayEnd) && settings.dayEnd > settings.dayStart && settings.dayEnd <= LATEST_END
     && Number.isInteger(settings.buffer) && settings.buffer >= 0 && settings.buffer <= 60
     && (settings.inboxRemindersEnabled === undefined || typeof settings.inboxRemindersEnabled === 'boolean')
-    && (settings.inboxReminderMinMinutes === undefined || [30, 60, 90, 120].includes(settings.inboxReminderMinMinutes));
+    && (settings.inboxReminderMinMinutes === undefined || Number.isInteger(settings.inboxReminderMinMinutes) && settings.inboxReminderMinMinutes >= 30 && settings.inboxReminderMinMinutes <= 120);
 }
 
 export function normalizePosition(date: string, start: number): { date: string; start: number } {

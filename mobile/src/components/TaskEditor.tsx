@@ -7,6 +7,8 @@ import { scheduleTask } from '../scheduler';
 import type { Category, Priority, Task } from '../types';
 import { finishesByDeadline, overlaps, parseTime } from '../time';
 import { overlapConsentKey } from '../week';
+import { TimeField } from './TimeField';
+import { durationTime, parseDuration } from '../timePicker';
 import { Button, Chip, Confirm, Dialog, FieldTitle, Label } from './ui';
 export { parseTime } from '../time';
 
@@ -20,7 +22,7 @@ function TaskEditorForm({ visible, task, target = 'today', initialDate, onClose 
   const { data, planningDate: today, planningNow: now, today: calendarToday, now: calendarNow, mutateTasks, notify } = usePlanning();
   const [title, setTitle] = useState(task?.title ?? '');
   const [notes, setNotes] = useState(task?.notes ?? '');
-  const [duration, setDuration] = useState(String(task?.duration ?? 30));
+  const [duration, setDuration] = useState(durationTime(task?.duration ?? 30));
   const [category, setCategory] = useState<Category>(task?.category ?? 'work');
   const [priority, setPriority] = useState<Priority>(task?.priority ?? 'normal');
   const [important, setImportant] = useState(task?.important ?? false);
@@ -36,9 +38,9 @@ function TaskEditorForm({ visible, task, target = 'today', initialDate, onClose 
   function save(consentKey?: string) {
     setOverlapRequest(null);
     setError('');
-    const minutes = Number(duration);
+    const minutes = parseDuration(duration);
     if (!title.trim()) { setError('先给这件事起一个名字。'); return; }
-    if (!Number.isInteger(minutes) || minutes < 5 || minutes > 720) { setError('预计时长请输入 5–720 之间的整数分钟。'); return; }
+    if (minutes === null || !Number.isInteger(minutes) || minutes < 5 || minutes > 720) { setError('预计时长应在 5 分钟至 12 小时之间。'); return; }
     if (deadline && (!/^\d{4}-\d{2}-\d{2}$/.test(deadline) || Number.isNaN(new Date(`${deadline}T12:00:00`).getTime()) || new Date(`${deadline}T12:00:00`).getDate() !== Number(deadline.slice(-2)))) {
       setError('截止日期请使用有效的 YYYY-MM-DD 格式。'); return;
     }
@@ -75,11 +77,11 @@ function TaskEditorForm({ visible, task, target = 'today', initialDate, onClose 
     </View>}>
     <FieldTitle>想做什么</FieldTitle><TextInput accessibilityLabel="任务名称" placeholder="例如：把产品方案写出第一稿" placeholderTextColor={c.faint} value={title} onChangeText={setTitle} maxLength={100} style={[styles.input, { fontSize: 16 }]} autoFocus />
     <FieldTitle>补充一点细节</FieldTitle><TextInput accessibilityLabel="任务备注" placeholder="什么算完成？第一步可以做什么？" placeholderTextColor={c.faint} value={notes} onChangeText={setNotes} multiline maxLength={1500} style={[styles.input, { minHeight: 72, textAlignVertical: 'top' }]} />
-    <FieldTitle>预计需要多久</FieldTitle><View style={styles.chips}>{[15, 30, 45, 60, 90].map(value => <Chip key={value} title={`${value} 分钟`} selected={duration === String(value)} onPress={() => setDuration(String(value))} />)}</View>
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 10 }}><TextInput accessibilityLabel="自定义时长" keyboardType="number-pad" value={duration} onChangeText={setDuration} style={[styles.input, { width: 90 }]} /><Label muted style={{ fontSize: 12 }}>分钟，也可以自己填写</Label></View>
+    <FieldTitle>预计需要多久</FieldTitle><View style={styles.chips}>{[15, 30, 45, 60, 90].map(value => <Chip key={value} title={`${value} 分钟`} selected={parseDuration(duration) === value} onPress={() => setDuration(durationTime(value))} />)}</View>
+    <View style={{ marginTop: 10 }}><TimeField label="自定义时长" value={duration} onChangeText={setDuration} mode="duration" min={5} max={720} fallback={30} /></View>
     <FieldTitle>安排到哪里</FieldTitle><View style={styles.chips}><Chip title="收集箱" selected={!date} onPress={() => { setDate(null); setFixed(false); }} /><Chip title="今天" selected={date === today} onPress={() => setDate(today)} /><Chip title="明天" selected={date === nextDay(today)} onPress={() => setDate(nextDay(today))} />{date && date !== today && date !== nextDay(today) && <Chip title={date} selected />}</View>
     {date && <><View style={styles.switchRow}><View><Label style={{ fontSize: 13 }}>固定开始时间</Label><Label muted style={{ fontSize: 11 }}>会议、预约等，救场时保持不变</Label></View><Switch accessibilityLabel="固定开始时间" value={fixed} onValueChange={value => { setFixed(value); if (value && !task && date === today && now >= 1440) { setDate(calendarToday); setTime(clock(calendarNow)); } }} trackColor={{ false: '#E3E1E9', true: '#C6B7EC' }} thumbColor={fixed ? c.purple : '#fff'} /></View>
-      {fixed && <TextInput accessibilityLabel="开始时间" value={time} onChangeText={setTime} placeholder="14:30" style={styles.input} />}</>}
+      {fixed && <TimeField label="开始时间" value={time} onChangeText={setTime} />}</>}
     <FieldTitle>属于生活的哪一部分</FieldTitle><View style={styles.chips}>{([['work', '工作'], ['life', '生活'], ['health', '健康']] as const).map(([value, label]) => <Chip key={value} title={label} selected={category === value} onPress={() => setCategory(value)} />)}</View>
     <FieldTitle>优先级</FieldTitle><View style={styles.chips}>{([['high', '优先处理'], ['normal', '正常安排'], ['low', '有空再做']] as const).map(([value, label]) => <Chip key={value} title={label} selected={priority === value} onPress={() => setPriority(value)} />)}</View>
     <View style={styles.switchRow}><View><Label style={{ fontSize: 13 }}>设为重点</Label><Label muted style={{ fontSize: 11 }}>调整日程时，优先保护它</Label></View><Switch accessibilityLabel="设为重点" value={important} onValueChange={setImportant} trackColor={{ false: '#E3E1E9', true: '#C6B7EC' }} thumbColor={important ? c.purple : '#fff'} /></View>

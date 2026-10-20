@@ -5,10 +5,17 @@ import { GUIDE_STEPS } from '../guide';
 import { colors as c } from '../theme';
 import { Badge, Button, Dialog, Icon, Label } from './ui';
 import { GuidePermissions } from './GuidePermissions';
-import { RescueGuideLesson, WeekGuideLesson } from './GuideLessons';
+import { useRouter } from 'expo-router';
+import { RescueGuideLesson, TimeGuideLesson, WeekGuideLesson } from './GuideLessons';
 
 export function OnboardingGuide({ blocked = false }: { blocked?: boolean }) {
   const guide = useGuide();
+  const router = useRouter();
+  function finish() {
+    const firstCompletion = guide.progress.completedRevision === 0;
+    guide.finish();
+    if (firstCompletion) router.navigate('/');
+  }
   const index = Math.max(0, GUIDE_STEPS.findIndex(step => step.id === guide.progress.stepId));
   const step = GUIDE_STEPS[index], visible = guide.ready && guide.visible && !blocked;
   return <Dialog visible={visible} title={step.title} subtitle={step.summary} onClose={guide.dismiss}
@@ -16,7 +23,7 @@ export function OnboardingGuide({ blocked = false }: { blocked?: boolean }) {
       <Button title="稍后再看" small variant="ghost" onPress={guide.dismiss} />
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {index > 0 && <Button title="上一步" small variant="secondary" onPress={() => guide.visit(GUIDE_STEPS[index - 1].id)} />}
-        <Button title={index === GUIDE_STEPS.length - 1 ? '完成教程' : index === 0 ? '开始了解' : '下一步'} small icon={index === GUIDE_STEPS.length - 1 ? 'check' : 'arrow-right'} onPress={() => index === GUIDE_STEPS.length - 1 ? guide.finish() : guide.visit(GUIDE_STEPS[index + 1].id)} />
+        <Button title={index === GUIDE_STEPS.length - 1 ? '完成教程' : index === 0 ? '开始了解' : '下一步'} small icon={index === GUIDE_STEPS.length - 1 ? 'check' : 'arrow-right'} onPress={() => index === GUIDE_STEPS.length - 1 ? finish() : guide.visit(GUIDE_STEPS[index + 1].id)} />
       </View>
     </View>}>
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 20 }}>
@@ -27,6 +34,7 @@ export function OnboardingGuide({ blocked = false }: { blocked?: boolean }) {
       <Label style={{ color: c.purple, fontSize: 12, width: 16 }}>{number + 1}.</Label><Label style={{ flex: 1, fontSize: 13, lineHeight: 23 }}>{tip}</Label>
     </View>)}</View>
     {step.id === 'welcome' && <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 22 }}><Badge title="记下来" tone="purple" /><Badge title="安排好" tone="green" /><Badge title="随时调整" tone="orange" /></View>}
+    {visible && step.id === 'tasks' && <TimeGuideLesson />}
     {visible && step.id === 'week' && <WeekGuideLesson />}
     {visible && step.id === 'rescue' && <RescueGuideLesson />}
     {visible && step.id === 'permissions' && <GuidePermissions />}

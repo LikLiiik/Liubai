@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { AppState, Platform } from 'react-native';
 import type { AppData, PlanResult, Settings, Task } from './types';
 import { storage } from './storage';
-import { createDemo, createEmpty } from './seed';
+import { createEmpty, personalData } from './seed';
 import { dateKey, uid } from './utils';
 import { syncNotifications } from './notifications';
 import { planningContext, validSettings } from './time';
@@ -22,7 +22,7 @@ type Store = {
   applyPlan: (plan: PlanResult, title: string, options?: { demo: boolean }) => void;
   undoPlan: () => void;
   updateSettings: (settings: Settings) => void;
-  reset: (demo: boolean) => void;
+  reset: () => void;
   reload: () => void;
 };
 
@@ -61,11 +61,11 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
   const notify = useCallback((message: string) => setToast(message), []);
   const readData = useCallback(() => {
     return storage.get().then(raw => {
-      if (!raw) setData(createDemo());
+      if (!raw) setData(createEmpty());
       else {
         const parsed: unknown = JSON.parse(raw);
         if (!isAppData(parsed)) throw new Error('本地数据格式无法识别');
-        setData(parsed);
+        setData(personalData(parsed));
       }
       setLoadError(null);
     }).catch(() => setLoadError('暂时无法读取本地数据。你可以重试，原有数据不会被覆盖。')).finally(() => setLoading(false));
@@ -122,10 +122,10 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
   const updateSettings = useCallback((settings: Settings) => setData(previous => ({ ...previous, settings })), []);
-  const reset = useCallback((demo: boolean) => {
+  const reset = useCallback(() => {
     setLoadError(null);
-    setData(previous => demo ? createDemo() : createEmpty(previous.settings));
-    notify(demo ? '已载入示例日程，模拟时间为 14:00。' : '空白的一天，准备好了。');
+    setData(previous => createEmpty(previous.settings));
+    notify('空白的一天，准备好了。');
   }, [notify]);
 
   const now = data.demo ? 840 : tick.getHours() * 60 + tick.getMinutes();

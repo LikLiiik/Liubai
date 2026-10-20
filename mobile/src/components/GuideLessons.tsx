@@ -5,6 +5,15 @@ import type { Task } from '../types';
 import { clock } from '../utils';
 import { colors as c } from '../theme';
 import { Badge, Button, Icon, Label } from './ui';
+import { TimeField } from './TimeField';
+
+export function TimeGuideLesson() {
+  const [time, setTime] = useState('14:30');
+  return <View style={{ marginTop: 20, padding: 16, backgroundColor: c.bg, borderRadius: 13 }}>
+    <View style={{ alignSelf: 'flex-start', marginBottom: 12 }}><Badge title="教学演示 · 不改变日程" tone="neutral" /></View>
+    <TimeField label="演示开始时间" value={time} onChangeText={setTime} />
+  </View>;
+}
 
 export function WeekGuideLesson() {
   const [moved, setMoved] = useState(false);

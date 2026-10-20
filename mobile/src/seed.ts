@@ -3,8 +3,7 @@ import { dateKey, nextDay } from './utils.ts';
 
 export const defaultSettings = { dayStart: 9 * 60, dayEnd: 18 * 60, buffer: 10 };
 
-export function createDemo(): AppData {
-  const today = dateKey();
+export function createDemo(today = dateKey()): AppData {
   const base: Task = { id: '', title: '', notes: '', duration: 30, category: 'work', priority: 'normal', important: false, fixed: false, completed: false, date: today, start: null, deadline: null, postponed: 0 };
   return {
     version: 1, demo: true, settings: { ...defaultSettings }, history: [], tasks: [
@@ -23,4 +22,18 @@ export function createDemo(): AppData {
 
 export function createEmpty(settings: Settings = defaultSettings): AppData {
   return { version: 1, demo: false, settings: { ...settings }, history: [], tasks: [] };
+}
+
+// Only an untouched legacy fixture is disposable. Any edits/imports/history may be personal work.
+export function personalData(data: AppData): AppData {
+  if (!data.demo) return data;
+  const anchor = data.tasks.find(task => task.id === 'demo-1')?.date;
+  const fixture = anchor ? createDemo(anchor) : null;
+  const untouched = fixture && !data.history.length && data.tasks.length === fixture.tasks.length
+    && fixture.tasks.every(example => {
+      const task = data.tasks.find(item => item.id === example.id);
+      return task && [...new Set([...Object.keys(example), ...Object.keys(task)])].every(key =>
+        JSON.stringify(task[key as keyof Task]) === JSON.stringify(example[key as keyof Task]));
+    });
+  return untouched ? createEmpty(data.settings) : { ...data, demo: false, history: data.history.map(entry => ({ ...entry, snapshotDemo: false })) };
 }

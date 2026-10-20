@@ -5,6 +5,8 @@ import { usePlanning } from '../store';
 import { createPlan } from '../scheduler';
 import { clock } from '../utils';
 import { inPlanningDay } from '../time';
+import { TimeField } from './TimeField';
+import { durationTime, parseDuration } from '../timePicker';
 import type { PlanMode, RescueReason } from '../types';
 import { Badge, Button, Chip, Dialog, FieldTitle, Icon, Label, type IconName } from './ui';
 
@@ -18,7 +20,8 @@ export function RescueDialog({ visible, initialReason = 'interruption', onClose 
   const { data, planningDate: today, planningNow: now, applyPlan } = usePlanning();
   const { width } = useWindowDimensions();
   const [reason, setReason] = useState<RescueReason>(initialReason);
-  const [minutes, setMinutes] = useState(30);
+  const [duration, setDuration] = useState(durationTime(30));
+  const minutes = parseDuration(duration) ?? 0;
   const [mode, setMode] = useState<PlanMode>('boundary');
   const candidates = data.tasks.filter(task => inPlanningDay(task, today, data.settings) && !task.completed && !task.fixed);
   const [taskId, setTaskId] = useState(candidates[0]?.id);
@@ -35,7 +38,8 @@ export function RescueDialog({ visible, initialReason = 'interruption', onClose 
       <Chip title="只重新安排" icon="shuffle" selected={reason === 'rebalance'} onPress={() => setReason('rebalance')} />
     </View>
     {reason === 'overrun' && <><FieldTitle>哪件事还需要时间</FieldTitle><View style={{ gap: 7 }}>{candidates.length ? candidates.map(task => <Chip key={task.id} title={task.title} selected={taskId === task.id} onPress={() => setTaskId(task.id)} />) : <Label muted>今天没有尚未完成的灵活任务。</Label>}</View></>}
-    {reason === 'interruption' || reason === 'overrun' ? <><FieldTitle>{reason === 'overrun' ? '从现在起，还需要多久？' : `从 ${clock(now)} 开始，占用多久？`}</FieldTitle><View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>{[15, 30, 60, 90].map(value => <Chip key={value} title={`${value} 分钟`} selected={minutes === value} onPress={() => setMinutes(value)} />)}</View>
+    {reason === 'interruption' || reason === 'overrun' ? <><FieldTitle>{reason === 'overrun' ? '从现在起，还需要多久？' : `从 ${clock(now)} 开始，占用多久？`}</FieldTitle><View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>{[15, 30, 60, 90].map(value => <Chip key={value} title={`${value} 分钟`} selected={minutes === value} onPress={() => setDuration(durationTime(value))} />)}</View>
+      <View style={{ marginTop: 10 }}><TimeField label="救场时长" value={duration} onChangeText={setDuration} mode="duration" min={5} max={720} fallback={30} /></View>
       {reason === 'overrun' && <Label muted style={{ fontSize: 11, marginTop: 8 }}>按你确认的剩余时长重新安排，不把经过的时间自动视为已完成。</Label>}</>
       : <View style={{ backgroundColor: c.greenBg, borderRadius: 10, padding: 13, marginTop: 15 }}><Label style={{ color: c.green, fontSize: 12 }}>{reason === 'lowEnergy' ? '把剩余空闲时间的一半留给休息。任务不会被擅自缩短。' : '从现在开始重新安排未完成任务，不新增临时事项。'}</Label></View>}
     <FieldTitle>这一次，你更想保住什么</FieldTitle><View style={{ flexDirection: width >= 650 ? 'row' : 'column', gap: 9 }}>

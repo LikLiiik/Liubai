@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Platform, ScrollView, Share, TextInput, useWindowDimensions, View } from 'react-native';
+import { Platform, ScrollView, Share, useWindowDimensions, View } from 'react-native';
 import { usePlanning } from '../store';
-import { colors as c, font } from '../theme';
+import { colors as c } from '../theme';
+import { TimeField } from '../components/TimeField';
+import { durationTime, parseDuration } from '../timePicker';
 import { clock } from '../utils';
 import { enableNotifications } from '../notifications';
 import { DEFAULT_FREE_MINUTES, findInboxSuggestion, localMoment } from '../inboxReminders';
@@ -9,7 +11,6 @@ import { InboxSuggestionDialog } from '../components/InboxSuggestionDialog';
 import { UpdateCard } from '../components/UpdateCard';
 import { GuideCard } from '../components/GuideCard';
 import { appVersion } from '../appVersion';
-import { defaultSettings } from '../seed';
 import { useRouter } from 'expo-router';
 import { parseTime, parsePreferenceEnd, preferenceTime } from '../time';
 import { Badge, Button, Card, Chip, Confirm, FieldTitle, Icon, Label } from '../components/ui';
@@ -20,9 +21,11 @@ export default function Me() {
   const { width } = useWindowDimensions();
   const [start, setStart] = useState(clock(data.settings.dayStart));
   const [end, setEnd] = useState(preferenceTime(data.settings.dayEnd));
-  const [buffer, setBuffer] = useState(String(data.settings.buffer));
+  const [buffer, setBuffer] = useState(durationTime(data.settings.buffer));
+  const [freeMinutes, setFreeMinutes] = useState(durationTime(data.settings.inboxReminderMinMinutes ?? DEFAULT_FREE_MINUTES));
+  const [freeError, setFreeError] = useState('');
   const [error, setError] = useState('');
-  const [confirm, setConfirm] = useState<'demo' | 'empty' | null>(null);
+  const [confirm, setConfirm] = useState(false);
   const [permissionPending, setPermissionPending] = useState(false);
   const [previewTask, setPreviewTask] = useState<string | null>(null);
   const availableSuggestion = findInboxSuggestion(data, localMoment(today, now));
@@ -30,20 +33,17 @@ export default function Me() {
   function save() {
     const dayStart = parseTime(start.trim() || clock(data.settings.dayStart));
     const dayEnd = dayStart === null ? null : parsePreferenceEnd(end.trim() || preferenceTime(data.settings.dayEnd), dayStart);
-    const minutes = Number(buffer);
+    const minutes = parseDuration(buffer);
     if (dayStart === null || dayEnd === null) { setError('请输入有效时间，结束最晚可到次日凌晨 6 点。'); return; }
-    if (!Number.isInteger(minutes) || minutes < 0 || minutes > 60) { setError('切换缓冲请输入 0–60 之间的整数分钟。'); return; }
+    if (minutes === null || !Number.isInteger(minutes) || minutes < 0 || minutes > 60) { setError('切换缓冲应在 0–60 分钟之间。'); return; }
     setStart(clock(dayStart)); setEnd(preferenceTime(dayEnd));
     updateSettings({ ...data.settings, dayStart, dayEnd, buffer: minutes }); setError(''); notify('节奏已保存，后续排程会参考这些偏好。');
   }
-  function completeTime(kind: 'start' | 'end') {
-    if (kind === 'start') {
-      const value = parseTime(start.trim() || clock(data.settings.dayStart));
-      if (value !== null) setStart(clock(value));
-    } else {
-      const value = parsePreferenceEnd(end.trim() || preferenceTime(data.settings.dayEnd), parseTime(start) ?? data.settings.dayStart);
-      if (value !== null) setEnd(preferenceTime(value));
-    }
+  function saveFreeMinutes() {
+    const minutes = parseDuration(freeMinutes);
+    if (minutes === null || minutes < 30 || minutes > 120) { setFreeError('空闲时长应在 30 分钟至 2 小时之间。'); return; }
+    updateSettings({ ...data.settings, inboxReminderMinMinutes: minutes });
+    setFreeMinutes(durationTime(minutes)); setFreeError(''); notify('空闲提醒时长已保存。');
   }
   async function toggleNotifications() {
     if (Platform.OS === 'web') { notify('网页预览暂不支持系统提醒，请在 Android 或 iOS 版本开启。'); return; }
@@ -78,16 +78,15 @@ export default function Me() {
       try { await Share.share({ title: '留白数据备份', message: json }); } catch { notify('分享备份失败，请稍后重试。'); }
     }
   }
-  const input = { borderWidth: 1, borderColor: '#E2DFEA', borderRadius: 10, padding: 12, backgroundColor: '#FCFCFD', fontFamily: font, fontSize: 14, color: c.text, minHeight: 44 };
 
   return <><ScrollView contentContainerStyle={{ padding: width < 600 ? 20 : 38, paddingBottom: 45 }}><View style={{ maxWidth: 900, width: '100%', alignSelf: 'center' }}>
     <Label style={{ fontSize: 28, lineHeight: 38, fontWeight: '700' }}>我的</Label><Label muted style={{ fontSize: 11, marginTop: 6, marginBottom: 27 }}>你的节奏、提醒和数据，都在这里。</Label>
     <GuideCard />
     <Card style={{ marginBottom: 20 }}><View style={{ flexDirection: 'row', gap: 9, alignItems: 'center' }}><Icon name="sun" size={18} color={c.purple} /><Label style={{ fontWeight: '600', fontSize: 14 }}>日程偏好</Label></View>
-      <View style={{ flexDirection: 'row', gap: 16 }}><View style={{ flex: 1 }}><FieldTitle>从几点开始</FieldTitle><TextInput accessibilityLabel="一天开始时间" value={start} onChangeText={setStart} onBlur={() => completeTime('start')} onSubmitEditing={() => completeTime('start')} selectTextOnFocus autoCorrect={false} placeholder="开始时间" style={input} /></View><View style={{ flex: 1 }}><FieldTitle>希望几点结束</FieldTitle><TextInput accessibilityLabel="一天结束时间" value={end} onChangeText={setEnd} onBlur={() => completeTime('end')} onSubmitEditing={() => completeTime('end')} selectTextOnFocus autoCorrect={false} placeholder="结束时间" style={input} /></View></View>
+      <View style={{ flexDirection: width < 600 ? 'column' : 'row', gap: width < 600 ? 0 : 16 }}><View style={{ flex: width < 600 ? undefined : 1 }}><FieldTitle>从几点开始</FieldTitle><TimeField label="一天开始时间" value={start} onChangeText={setStart} fallback={data.settings.dayStart} /></View><View style={{ flex: width < 600 ? undefined : 1 }}><FieldTitle>希望几点结束</FieldTitle><TimeField label="一天结束时间" value={end} onChangeText={setEnd} mode="end" min={(parseTime(start) ?? data.settings.dayStart) + 1} max={1800} dayStart={parseTime(start) ?? data.settings.dayStart} fallback={data.settings.dayEnd} /></View></View>
       <Label muted style={{ fontSize: 11, marginTop: 10 }}>结束最晚可到次日凌晨 6 点。</Label>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7, paddingTop: 12 }}>{['18:00', '22:00', '次日 02:00', '次日 06:00'].map(value => <Chip key={value} title={value} selected={end === value} onPress={() => { setEnd(value); setError(''); }} />)}</ScrollView>
-      <FieldTitle>灵活任务之间，留多少分钟切换</FieldTitle><View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><TextInput accessibilityLabel="任务切换缓冲" value={buffer} onChangeText={setBuffer} keyboardType="number-pad" style={[input, { width: 100 }]} /><Label muted style={{ fontSize: 12 }}>分钟</Label></View>
+      <FieldTitle>灵活任务之间，留多少时间切换</FieldTitle><TimeField label="任务切换缓冲" value={buffer} onChangeText={setBuffer} mode="duration" max={60} />
       <Label muted style={{ fontSize: 11, marginTop: 15 }}>只影响后续安排，不会自动移动已有日程。选择「保截止时间」时，可在预览中接受最多延后 60 分钟。</Label>
       {error && <Label accessibilityRole="alert" style={{ color: c.red, fontSize: 12, marginTop: 13 }}>{error}</Label>}
       <Button title="保存我的节奏" icon="check" onPress={save} style={{ alignSelf: 'flex-start', marginTop: 20 }} />
@@ -97,10 +96,11 @@ export default function Me() {
     <Card style={{ marginBottom: 20 }}><Label style={{ fontWeight: '600', fontSize: 14 }}>收集箱空闲提醒</Label>
       <Label muted style={{ fontSize: 11, marginTop: 8 }}>有较长连续空档时，问问要不要做一件待办。</Label>
       <Button title={permissionPending ? '正在开启…' : data.settings.inboxRemindersEnabled ? '关闭空闲提醒' : '开启空闲提醒'} icon="bell" variant="secondary" small disabled={permissionPending || Platform.OS === 'web'} onPress={toggleInboxReminders} style={{ alignSelf: 'flex-start', marginTop: 14 }} />
-      <FieldTitle>连续空闲至少</FieldTitle><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7 }}>{[30, 60, 90, 120].map(minutes => <Chip key={minutes} title={minutes < 60 ? `${minutes} 分钟` : `${minutes / 60} 小时`} selected={(data.settings.inboxReminderMinMinutes ?? DEFAULT_FREE_MINUTES) === minutes} onPress={() => updateSettings({ ...data.settings, inboxReminderMinMinutes: minutes })} />)}</View>
+      <FieldTitle>连续空闲至少</FieldTitle><TimeField label="空闲提醒时长" value={freeMinutes} onChangeText={setFreeMinutes} mode="duration" min={30} max={120} fallback={DEFAULT_FREE_MINUTES} />
+      {freeError && <Label accessibilityRole="alert" style={{ fontSize: 12, color: c.red, marginTop: 10 }}>{freeError}</Label>}
+      <Button title="保存空闲时长" small variant="secondary" onPress={saveFreeMinutes} style={{ alignSelf: 'flex-start', marginTop: 12 }} />
       <Label muted style={{ fontSize: 11, marginTop: 13 }}>按偏好时段计算，每天最多一次。确认后才安排；暂不安排则暂停该待办 3 天。</Label>
       {Platform.OS === 'web' && <Label muted style={{ fontSize: 11, marginTop: 8 }}>系统通知仅在手机端发送。</Label>}
-      {data.demo && <Label muted style={{ fontSize: 11, marginTop: 8 }}>示例模式不发送系统通知。</Label>}
       <Button title="预览待办提醒" variant="ghost" small disabled={!availableSuggestion} onPress={() => setPreviewTask(availableSuggestion?.taskId ?? null)} style={{ alignSelf: 'flex-start', marginTop: 14 }} />
       {!availableSuggestion && <Label muted style={{ fontSize: 11, marginTop: 8 }}>当前没有可推荐的待办或足够长的空档。</Label>}
     </Card>
@@ -108,8 +108,8 @@ export default function Me() {
       <Label muted style={{ fontSize: 11, marginTop: 12 }}>当前版本无需账号。{Platform.OS === 'web' ? '数据保存在这个浏览器中，清除站点数据会删除记录。' : '数据保存在这台设备上，卸载应用会删除记录。'}跨设备同步尚未接入。</Label>
       <Button title="导出数据备份" icon="download" variant="secondary" small onPress={exportData} style={{ alignSelf: 'flex-start', marginTop: 17 }} />
     </Card>
-    <Card style={{ marginBottom: 25 }}><Label style={{ fontWeight: '600', fontSize: 14 }}>重新开始</Label><Label muted style={{ fontSize: 11, marginTop: 9 }}>载入示例或清空任务都会替换当前数据，请先导出需要保留的记录。</Label><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9, marginTop: 17 }}><Button title="重新体验示例" icon="refresh-cw" variant="secondary" small onPress={() => setConfirm('demo')} /><Button title="清空，开始我的一天" icon="sunrise" variant="ghost" small onPress={() => setConfirm('empty')} /></View></Card>
+    <Card style={{ marginBottom: 25 }}><Label style={{ fontWeight: '600', fontSize: 14 }}>重新开始</Label><Label muted style={{ fontSize: 11, marginTop: 9 }}>清空任务会移除当前日程与调整记录，请先导出需要保留的数据。</Label><Button title="清空，开始我的一天" icon="sunrise" variant="ghost" small onPress={() => setConfirm(true)} style={{ alignSelf: 'flex-start', marginTop: 17 }} /></Card>
     <UpdateCard />
     <Label muted style={{ textAlign: 'center', fontSize: 10 }}>留白 {appVersion} · 给今天留一点余地</Label>
-  </View></ScrollView><Confirm visible={!!confirm} title={confirm === 'demo' ? '重新载入示例日程？' : '清空并重新开始？'} description={`当前所有任务和调整记录都将被替换。${confirm === 'empty' ? '日程偏好和提醒设置会保留。' : ''}请确认已经导出需要保留的数据。`} action={confirm === 'demo' ? '载入示例' : '确认清空'} onClose={() => setConfirm(null)} onConfirm={() => { const nextSettings = confirm === 'demo' ? defaultSettings : data.settings; reset(confirm === 'demo'); setStart(clock(nextSettings.dayStart)); setEnd(preferenceTime(nextSettings.dayEnd)); setBuffer(String(nextSettings.buffer)); setError(''); setConfirm(null); }} /><InboxSuggestionDialog taskId={previewTask} preview onClose={() => setPreviewTask(null)} /></>;
+  </View></ScrollView><Confirm visible={confirm} title="清空并重新开始？" description="当前所有任务和调整记录都将被移除，日程偏好和提醒设置会保留。请确认已经导出需要保留的数据。" action="确认清空" onClose={() => setConfirm(false)} onConfirm={() => { reset(); setError(''); setConfirm(false); }} /><InboxSuggestionDialog taskId={previewTask} preview onClose={() => setPreviewTask(null)} /></>;
 }
