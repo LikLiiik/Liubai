@@ -12,7 +12,8 @@
       "bundleIdentifier": "app.liubai.planner"
     },
     "android": {
-      "package": "app.liubai.planner"
+      "package": "app.liubai.planner",
+      "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
       "favicon": "./assets/favicon.png",

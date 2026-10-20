@@ -5,6 +5,7 @@ import { WebView } from 'react-native-webview';
 import { buildSchoolReadScript, HITSZ_ENTRY, HITSZ_HELP, schoolUrlAllowed, type SchoolLoginProps, type SchoolRead } from '../hitsz';
 import { colors as c } from '../theme';
 import { Button, Label } from './ui';
+import { KeyboardFrame } from './KeyboardForm';
 
 export function SchoolLogin({ visible, request, onRead, onClose }: SchoolLoginProps) {
   const web = useRef<WebView<object>>(null);
@@ -33,7 +34,7 @@ export function SchoolLogin({ visible, request, onRead, onClose }: SchoolLoginPr
     web.current?.injectJavaScript(buildSchoolReadScript(request, id));
   }
   return <Modal visible={visible} animationType="slide" onRequestClose={close}>
-    <View style={{ flex: 1, backgroundColor: c.bg, paddingTop: insets.top, paddingBottom: insets.bottom }}>
+    <KeyboardFrame><View style={{ flex: 1, backgroundColor: c.bg, paddingTop: insets.top, paddingBottom: insets.bottom }}>
       <View style={{ paddingHorizontal: 14, paddingVertical: 10, flexDirection: 'row', gap: 8, alignItems: 'center' }}>
         <Button title="返回" small variant="ghost" onPress={close} />
         <View style={{ flex: 1 }}><Label style={{ fontWeight: '600' }}>哈工大（深圳）教务</Label><Label muted style={{ fontSize: 10 }}>{new URL(url).hostname}</Label></View>
@@ -75,6 +76,6 @@ export function SchoolLogin({ visible, request, onRead, onClose }: SchoolLoginPr
         <Label muted style={{ fontSize: 11, marginBottom: 9 }}>{request.year} · 第 {request.term} 学期 · 登录后进入个人课表再读取</Label>
         <Button title={reading ? '正在读取…' : '读取课表'} icon="download" disabled={reading || loading} onPress={read} />
       </View>
-    </View>
+    </View></KeyboardFrame>
   </Modal>;
 }

@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors as c } from '../theme';
 import { usePlanning } from '../store';
 import { Button, Card, Icon, Label, type IconName } from './ui';
+import { KeyboardFrame } from './KeyboardForm';
 
 const links = [
   { path: '/' as const, title: '今天', icon: 'sun' as IconName },
@@ -29,7 +30,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       : <Card style={{ maxWidth: 440, gap: 18 }}><Icon name="alert-circle" color={c.orange} size={28} /><Label>{loadError}</Label><Button title="重新读取" onPress={reload} /></Card>}
   </View>;
 
-  return <View style={{ flex: 1, backgroundColor: c.bg, paddingTop: inset.top }}>
+  return <KeyboardFrame><View style={{ flex: 1, backgroundColor: c.bg, paddingTop: inset.top }}>
     <View style={{ flex: 1, flexDirection: 'row' }}>
       {wide && <View style={styles.sidebar}>
         <View style={{ flexDirection: 'row', gap: 11, alignItems: 'center', marginBottom: 48, paddingLeft: 12 }}>
@@ -71,7 +72,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
     {toast && <View pointerEvents="none" style={{ position: 'absolute', left: wide ? 240 : 16, right: 16, bottom: wide ? 30 : 95, alignItems: 'center', zIndex: 100 }}>
       <View accessibilityRole="alert" style={{ backgroundColor: '#343043', paddingVertical: 13, paddingHorizontal: 20, borderRadius: 12, maxWidth: 560, flexDirection: 'row', gap: 9, alignItems: 'center', boxShadow: '0px 6px 24px rgba(0,0,0,0.12)' }}><Icon name="info" size={16} color="#D7CCF6" /><Label style={{ color: '#fff', fontSize: 12, flexShrink: 1 }}>{toast}</Label></View>
     </View>}
-  </View>;
+  </View></KeyboardFrame>;
 }
 
 export function BrandMark({ small }: { small?: boolean }) {

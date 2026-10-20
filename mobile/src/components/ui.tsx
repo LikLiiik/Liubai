@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle, type TextProps } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle, type TextProps } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
 import { colors as c, font } from '../theme';
+import { KeyboardFormScrollView, KeyboardFrame } from './KeyboardForm';
 
 export type IconName = React.ComponentProps<typeof Feather>['name'];
 export function Icon({ name, size = 18, color = c.muted }: { name: IconName; size?: number; color?: string }) {
@@ -50,17 +51,17 @@ export function Dialog({ visible, title, subtitle, onClose, children, wide = fal
   visible: boolean; title: string; subtitle?: string; onClose: () => void; children: React.ReactNode; wide?: boolean; footer?: React.ReactNode; scrollEnabled?: boolean;
 }) {
   return <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-    <View style={styles.overlay}>
+    <KeyboardFrame><View style={styles.overlay}>
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="关闭弹窗" />
       <View accessibilityViewIsModal style={[styles.dialog, { maxWidth: wide ? 760 : 510 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', padding: 24, paddingBottom: 18 }}>
           <View style={{ flex: 1 }}><Label style={{ fontSize: 22, fontWeight: '700', lineHeight: 30 }}>{title}</Label>{subtitle && <Label muted style={{ fontSize: 12, marginTop: 7 }}>{subtitle}</Label>}</View>
           <Pressable accessibilityRole="button" accessibilityLabel="关闭" onPress={onClose} style={{ padding: 6, marginLeft: 10 }}><Icon name="x" size={21} /></Pressable>
         </View>
-        <ScrollView scrollEnabled={scrollEnabled} keyboardShouldPersistTaps="handled" style={{ flexShrink: 1 }} contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 24 }}>{children}</ScrollView>
+        <KeyboardFormScrollView scrollEnabled={scrollEnabled} style={{ flexShrink: 1 }} contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 24 }}>{children}</KeyboardFormScrollView>
         {footer && <View style={{ padding: 20, borderTopWidth: 1, borderTopColor: c.border }}>{footer}</View>}
       </View>
-    </View>
+    </View></KeyboardFrame>
   </Modal>;
 }
 export function Confirm({ visible, title, description, action, onConfirm, onClose }: { visible: boolean; title: string; description: string; action: string; onConfirm: () => void; onClose: () => void }) {

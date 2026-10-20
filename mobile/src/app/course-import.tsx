@@ -1,5 +1,6 @@
+import { KeyboardFormScrollView } from '../components/KeyboardForm';
 import React, { useMemo, useState } from 'react';
-import { Platform, Pressable, ScrollView, Switch, TextInput, useWindowDimensions, View } from 'react-native';
+import { Platform, Pressable, Switch, TextInput, useWindowDimensions, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { usePlanning } from '../store';
 import { colors as c, font } from '../theme';
@@ -58,7 +59,7 @@ export default function CourseImport() {
     setImportedDate(dates.find(date => date >= today) ?? dates[0] ?? today);
     setDone(true);
   }
-  return <><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: compact ? 20 : 38, paddingBottom: 45 }}>
+  return <><KeyboardFormScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: compact ? 20 : 38, paddingBottom: 45 }}>
     <View style={{ width: '100%', maxWidth: 900, alignSelf: 'center' }}>
       <Pressable accessibilityRole="link" accessibilityLabel="返回我的" onPress={() => router.navigate('/me')} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 16, minHeight: 32 }}><Icon name="arrow-left" size={16} /><Label muted style={{ fontSize: 12 }}>我的</Label></Pressable>
       <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center', marginBottom: 23 }}><Label style={{ fontSize: 26, lineHeight: 36, fontWeight: '700' }}>课表导入</Label></View>
@@ -112,7 +113,7 @@ export default function CourseImport() {
       </>}
       {!!error && <Label accessibilityRole="alert" style={{ color: c.red, fontSize: 12, marginTop: 15 }}>{error}</Label>}
     </View>
-  </ScrollView>
+  </KeyboardFormScrollView>
     <SchoolLogin visible={login} request={{ year, term }} onRead={receive} onClose={() => setLogin(false)} />
     <Confirm visible={confirmImport} title="导入本学期课表？" description={`新增 ${preview?.added ?? 0} 项，更新 ${preview?.updated ?? 0} 项，移除 ${preview?.removed ?? 0} 项。课程默认固定，可在回顾中撤销。`} action="导入课表" onClose={() => setConfirmImport(false)} onConfirm={importNow} />
   </>;

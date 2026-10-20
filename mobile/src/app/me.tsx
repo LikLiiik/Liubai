@@ -1,3 +1,4 @@
+import { KeyboardFormScrollView } from '../components/KeyboardForm';
 import React, { useState } from 'react';
 import { Platform, ScrollView, Share, useWindowDimensions, View } from 'react-native';
 import { usePlanning } from '../store';
@@ -79,7 +80,7 @@ export default function Me() {
     }
   }
 
-  return <><ScrollView contentContainerStyle={{ padding: width < 600 ? 20 : 38, paddingBottom: 45 }}><View style={{ maxWidth: 900, width: '100%', alignSelf: 'center' }}>
+  return <><KeyboardFormScrollView contentContainerStyle={{ padding: width < 600 ? 20 : 38, paddingBottom: 45 }}><View style={{ maxWidth: 900, width: '100%', alignSelf: 'center' }}>
     <Label style={{ fontSize: 28, lineHeight: 38, fontWeight: '700' }}>我的</Label><Label muted style={{ fontSize: 11, marginTop: 6, marginBottom: 27 }}>你的节奏、提醒和数据，都在这里。</Label>
     <GuideCard />
     <Card style={{ marginBottom: 20 }}><View style={{ flexDirection: 'row', gap: 9, alignItems: 'center' }}><Icon name="sun" size={18} color={c.purple} /><Label style={{ fontWeight: '600', fontSize: 14 }}>日程偏好</Label></View>
@@ -111,5 +112,5 @@ export default function Me() {
     <Card style={{ marginBottom: 25 }}><Label style={{ fontWeight: '600', fontSize: 14 }}>重新开始</Label><Label muted style={{ fontSize: 11, marginTop: 9 }}>清空任务会移除当前日程与调整记录，请先导出需要保留的数据。</Label><Button title="清空，开始我的一天" icon="sunrise" variant="ghost" small onPress={() => setConfirm(true)} style={{ alignSelf: 'flex-start', marginTop: 17 }} /></Card>
     <UpdateCard />
     <Label muted style={{ textAlign: 'center', fontSize: 10 }}>留白 {appVersion} · 给今天留一点余地</Label>
-  </View></ScrollView><Confirm visible={confirm} title="清空并重新开始？" description="当前所有任务和调整记录都将被移除，日程偏好和提醒设置会保留。请确认已经导出需要保留的数据。" action="确认清空" onClose={() => setConfirm(false)} onConfirm={() => { reset(); setError(''); setConfirm(false); }} /><InboxSuggestionDialog taskId={previewTask} preview onClose={() => setPreviewTask(null)} /></>;
+  </View></KeyboardFormScrollView><Confirm visible={confirm} title="清空并重新开始？" description="当前所有任务和调整记录都将被移除，日程偏好和提醒设置会保留。请确认已经导出需要保留的数据。" action="确认清空" onClose={() => setConfirm(false)} onConfirm={() => { reset(); setError(''); setConfirm(false); }} /><InboxSuggestionDialog taskId={previewTask} preview onClose={() => setPreviewTask(null)} /></>;
 }
