@@ -18,6 +18,7 @@ export interface Task {
   deadline: string | null;
   postponed: number;
   courseImport?: { school: 'hitsz'; semester: string; key: string; fingerprint: string; sample?: boolean };
+  inboxReminderAfter?: string;
 }
 
 export interface Settings {
@@ -25,6 +26,8 @@ export interface Settings {
   dayEnd: number;
   buffer: number;
   notificationsEnabled?: boolean;
+  inboxRemindersEnabled?: boolean;
+  inboxReminderMinMinutes?: number;
 }
 
 export interface Change {

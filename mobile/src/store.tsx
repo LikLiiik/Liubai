@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import type { AppData, PlanResult, Settings, Task } from './types';
 import { storage } from './storage';
 import { createDemo, createEmpty } from './seed';
@@ -42,6 +42,7 @@ function isAppData(value: unknown): value is AppData {
       && (task.date === null || /^\d{4}-\d{2}-\d{2}$/.test(task.date))
       && (task.deadline === null || /^\d{4}-\d{2}-\d{2}$/.test(task.deadline))
       && Number.isFinite(task.postponed)
+      && (task.inboxReminderAfter === undefined || /^\d{4}-\d{2}-\d{2}$/.test(task.inboxReminderAfter))
       && (!task.courseImport || task.courseImport.school === 'hitsz' && typeof task.courseImport.semester === 'string'
         && typeof task.courseImport.key === 'string' && typeof task.courseImport.fingerprint === 'string'
         && (task.courseImport.sample === undefined || typeof task.courseImport.sample === 'boolean')));
@@ -54,6 +55,8 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
   const [saveStatus, setSaveStatus] = useState<'saving' | 'saved' | 'error'>('saving');
   const [toast, setToast] = useState<string | null>(null);
   const [tick, setTick] = useState(() => new Date());
+  const today = dateKey(tick);
+  const timezoneOffset = tick.getTimezoneOffset();
   const writeQueue = useRef(Promise.resolve());
   const notify = useCallback((message: string) => setToast(message), []);
   const readData = useCallback(() => {
@@ -90,12 +93,20 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
         catch { notify('日程已保存，但系统提醒更新失败，请检查通知权限。'); }
       }
     }).catch(() => { setSaveStatus('error'); notify('保存失败，请保留当前页面，并检查设备存储或浏览器权限。'); });
+  }, [data, loading, loadError, notify, today, timezoneOffset]);
+  useEffect(() => {
+    if (Platform.OS === 'web' || loading || loadError) return;
+    const listener = AppState.addEventListener('change', state => {
+      if (state !== 'active') return;
+      writeQueue.current = writeQueue.current.then(() => syncNotifications(data))
+        .catch(() => notify('系统提醒更新失败，请检查通知权限。'));
+    });
+    return () => listener.remove();
   }, [data, loading, loadError, notify]);
 
   const mutateTasks = useCallback((update: (tasks: Task[]) => Task[]) => {
     setData(previous => ({ ...previous, tasks: update(previous.tasks) }));
   }, []);
-  const today = dateKey(tick);
   const applyPlan = useCallback((plan: PlanResult, title: string, options?: { demo: boolean }) => {
     if (!plan.valid) return;
     setData(previous => ({ ...previous, demo: options?.demo ?? previous.demo, tasks: plan.tasks, history: [{ id: uid(), date: today,

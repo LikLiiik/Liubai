@@ -48,7 +48,8 @@ function TaskEditorForm({ visible, task, target = 'today', initialDate, onClose 
     }
     const updated: Task = { id: task?.id ?? uid(), title: title.trim(), notes: notes.trim(), duration: minutes,
       category, priority, important, fixed: !!date && fixed, completed: task?.completed ?? false,
-      completedAt: task?.completedAt, date, start, deadline: deadline || null, postponed: task?.postponed ?? 0, courseImport: task?.courseImport };
+      completedAt: task?.completedAt, date, start, deadline: deadline || null, postponed: task?.postponed ?? 0,
+      courseImport: task?.courseImport, inboxReminderAfter: task?.inboxReminderAfter };
     let next = task ? data.tasks.map(item => item.id === task.id ? updated : item) : [...data.tasks, updated];
     let noSlot = false;
     if (date && !updated.fixed && start === null) {

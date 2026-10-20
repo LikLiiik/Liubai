@@ -66,7 +66,9 @@ export function preferenceTime(minutes: number): string {
 export function validSettings(settings: Settings): boolean {
   return Number.isInteger(settings.dayStart) && settings.dayStart >= 0 && settings.dayStart < 1440
     && Number.isInteger(settings.dayEnd) && settings.dayEnd > settings.dayStart && settings.dayEnd <= LATEST_END
-    && Number.isInteger(settings.buffer) && settings.buffer >= 0 && settings.buffer <= 60;
+    && Number.isInteger(settings.buffer) && settings.buffer >= 0 && settings.buffer <= 60
+    && (settings.inboxRemindersEnabled === undefined || typeof settings.inboxRemindersEnabled === 'boolean')
+    && (settings.inboxReminderMinMinutes === undefined || [30, 60, 90, 120].includes(settings.inboxReminderMinMinutes));
 }
 
 export function normalizePosition(date: string, start: number): { date: string; start: number } {
