@@ -1,13 +1,29 @@
 import React, { useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { createPlan } from '../scheduler';
-import type { Task } from '../types';
-import { clock, taskPosition } from '../utils';
+import type { Category, Task } from '../types';
+import { clock, taskPosition, uid } from '../utils';
 import { colors as c } from '../theme';
 import { Badge, Button, FieldTitle, Icon, Label } from './ui';
 import { TimeField, TimeWheelPicker } from './TimeField';
 import { durationTime } from '../timePicker';
+import { addCategoryToData, categoriesFor } from '../categories';
+import { createEmpty } from '../seed';
+import { CategoryPicker } from './CategoryPicker';
 export { WeekGuideLesson } from './GuideWeekLesson';
+
+export function CategoryGuideLesson() {
+  const [example, setExample] = useState(createEmpty);
+  const [category, setCategory] = useState<Category>('work');
+  return <View style={{ marginTop: 20, padding: 16, backgroundColor: c.bg, borderRadius: 13 }}>
+    <View style={{ alignSelf: 'flex-start', marginBottom: 12 }}><Badge title="教学演示 · 不改变分类" tone="neutral" /></View>
+    <CategoryPicker categories={categoriesFor(example)} value={category} onChange={setCategory} onAdd={name => {
+      const next = addCategoryToData(example, name, uid());
+      setExample(next.data);
+      return next.result;
+    }} />
+  </View>;
+}
 
 export function TimeGuideLesson() {
   const [time, setTime] = useState(870);

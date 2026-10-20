@@ -6,7 +6,7 @@ import { colors as c } from '../theme';
 import { Badge, Button, Dialog, Icon, Label } from './ui';
 import { GuidePermissions } from './GuidePermissions';
 import { useRouter } from 'expo-router';
-import { RescueGuideLesson, TimeGuideLesson, WeekGuideLesson } from './GuideLessons';
+import { CategoryGuideLesson, RescueGuideLesson, TimeGuideLesson, WeekGuideLesson } from './GuideLessons';
 
 export function OnboardingGuide({ blocked = false }: { blocked?: boolean }) {
   const guide = useGuide();
@@ -38,6 +38,7 @@ export function OnboardingGuide({ blocked = false }: { blocked?: boolean }) {
     {visible && step.id === 'tasks' && <TimeGuideLesson />}
     {visible && step.id === 'week' && <WeekGuideLesson onDraggingChange={setLessonDragging} />}
     {visible && step.id === 'rescue' && <RescueGuideLesson />}
+    {visible && step.id === 'explore' && <CategoryGuideLesson />}
     {visible && step.id === 'permissions' && <GuidePermissions />}
     {guide.saveError && <View style={{ marginTop: 16, padding: 12, backgroundColor: c.orangeBg, borderRadius: 9 }}><Label accessibilityRole="alert" style={{ fontSize: 11, color: c.orange }}>教程进度暂未保存，可以继续使用。</Label><Button title="重试保存进度" variant="ghost" small onPress={guide.retry} /></View>}
   </Dialog>;

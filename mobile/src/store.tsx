@@ -7,6 +7,7 @@ import { dateKey, uid } from './utils';
 import { syncNotifications } from './notifications';
 import { planningContext, validSettings } from './time';
 import { applyPlanToData } from './planApply';
+import { addCategoryToData, knownCategory, type CategoryAddResult } from './categories';
 
 type Store = {
   data: AppData;
@@ -23,6 +24,7 @@ type Store = {
   applyPlan: (plan: PlanResult, title: string, options?: { demo: boolean }) => boolean;
   undoPlan: () => void;
   updateSettings: (settings: Settings) => void;
+  addCategory: (name: string) => CategoryAddResult;
   reset: () => void;
   reload: () => void;
 };
@@ -38,7 +40,7 @@ function isAppData(value: unknown): value is AppData {
       && Number.isFinite(task.duration) && task.duration > 0 && task.duration <= 720
       && typeof task.completed === 'boolean' && typeof task.fixed === 'boolean'
       && typeof task.important === 'boolean' && typeof task.notes === 'string'
-      && ['work', 'life', 'health'].includes(task.category) && ['high', 'normal', 'low'].includes(task.priority)
+      && knownCategory(task.category, data.settings) && ['high', 'normal', 'low'].includes(task.priority)
       && (task.start === null || Number.isInteger(task.start) && task.start >= 0 && task.start < 1440)
       && (task.date === null || /^\d{4}-\d{2}-\d{2}$/.test(task.date))
       && (task.deadline === null || /^\d{4}-\d{2}-\d{2}$/.test(task.deadline))
@@ -138,7 +140,20 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
       return { ...previous, demo: latest.snapshotDemo ?? previous.demo, tasks: latest.snapshot, history: previous.history.slice(1) };
     });
   }, [commit]);
-  const updateSettings = useCallback((settings: Settings) => { commit(previous => ({ ...previous, settings })); }, [commit]);
+  const updateSettings = useCallback((settings: Settings) => {
+    // Category additions have their own atomic operation; a delayed permission
+    // response must not replace them with an older settings snapshot.
+    commit(previous => ({ ...previous, settings: { ...settings, ...(previous.settings.categories ? { categories: previous.settings.categories } : {}) } }));
+  }, [commit]);
+  const addCategory = useCallback((name: string): CategoryAddResult => {
+    let result: CategoryAddResult = { error: '未能添加分类，请重试。' };
+    commit(previous => {
+      const next = addCategoryToData(previous, name, uid());
+      result = next.result;
+      return next.data;
+    });
+    return result;
+  }, [commit]);
   const reset = useCallback(() => {
     setLoadError(null);
     commit(previous => createEmpty(previous.settings));
@@ -149,7 +164,7 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
   const planning = planningContext(today, now, data.settings);
   return <Context.Provider value={{ data, loading, loadError, saveStatus, today, now,
     planningDate: planning.date, planningNow: planning.now, toast, notify, mutateTasks, applyPlan,
-    undoPlan, updateSettings, reset, reload }}>{children}</Context.Provider>;
+    undoPlan, updateSettings, addCategory, reset, reload }}>{children}</Context.Provider>;
 }
 
 export function usePlanning() {

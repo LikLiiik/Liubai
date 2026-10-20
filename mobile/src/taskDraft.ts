@@ -3,6 +3,7 @@ import { finishesByDeadline, overlaps, parseTime } from './time.ts';
 import { parseDuration } from './timePicker.ts';
 import { scheduleTask } from './scheduler.ts';
 import { overlapConsentKey, validDate } from './week.ts';
+import { knownCategory } from './categories.ts';
 
 export type TaskDraft = {
   id: string; title: string; notes: string; duration: string; category: Category; priority: Priority;
@@ -21,6 +22,7 @@ export function saveTaskDraft(tasks: Task[], settings: Settings, draft: TaskDraf
     return { kind: 'error', error: '这项任务已变更，请关闭后重新打开。' };
   }
   if (!title.trim() || title.trim().length > 100) return { kind: 'error', error: '请填写 1–100 字的任务名称。' };
+  if (!knownCategory(draft.category, settings)) return { kind: 'error', error: '请选择已有分类，或先添加分类。' };
   const minutes = parseDuration(draft.duration);
   if (minutes === null || !Number.isInteger(minutes) || minutes < 5 || minutes > 720) return { kind: 'error', error: '预计时长应在 5 分钟至 12 小时之间。' };
   if (date !== null && !validDate(date)) return { kind: 'error', error: '请选择有效的任务日期。' };

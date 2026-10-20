@@ -72,6 +72,15 @@ test('users who completed v4 receive split time and duration teaching with their
   assert.equal(visitGuideStep(previous, 'preferences').completedRevision, 4);
 });
 
+test('users who completed v5 start at category teaching and retain their previous completion history', () => {
+  const previous = { ...freshGuideProgress(), revision: 5, completedRevision: 5, deferredRevision: 5 };
+  assert.equal(shouldShowGuide(previous), true);
+  assert.equal(guideStartStep(previous), 'tasks');
+  assert.equal(GUIDE_STEPS.find(step => step.id === 'explore')!.introduced, 6);
+  assert.ok(GUIDE_STEPS.find(step => step.id === 'tasks')!.tips.join('').includes('添加分类'));
+  assert.equal(visitGuideStep(previous, 'explore').completedRevision, 5);
+});
+
 test('missing or damaged progress recovers without crashing and removed step IDs retain completion history', () => {
   for (const raw of ['not json', 'null', '[]', '{}', JSON.stringify({ ...freshGuideProgress(), completedRevision: -1 })]) {
     assert.deepEqual(parseGuideProgress(raw), freshGuideProgress());

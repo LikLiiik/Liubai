@@ -8,20 +8,22 @@ import { saveTaskDraft } from '../taskDraft';
 import { TimeField } from './TimeField';
 import { durationTime, parseDuration } from '../timePicker';
 import { Button, Chip, Confirm, Dialog, FieldTitle, Label } from './ui';
+import { categoriesFor } from '../categories';
+import { CategoryPicker } from './CategoryPicker';
 export { parseTime } from '../time';
 
-type TaskEditorProps = { visible: boolean; task?: Task | null; target?: 'today' | 'inbox'; initialDate?: string; onClose: () => void };
+type TaskEditorProps = { visible: boolean; task?: Task | null; target?: 'today' | 'inbox'; initialDate?: string; initialCategory?: Category; onClose: () => void };
 
 export function TaskEditor(props: TaskEditorProps) {
   return props.visible ? <TaskEditorForm key={props.task?.id ?? props.target ?? 'today'} {...props} /> : null;
 }
 
-function TaskEditorForm({ visible, task, target = 'today', initialDate, onClose }: TaskEditorProps) {
-  const { data, planningDate: today, planningNow: now, today: calendarToday, now: calendarNow, mutateTasks, notify } = usePlanning();
+function TaskEditorForm({ visible, task, target = 'today', initialDate, initialCategory, onClose }: TaskEditorProps) {
+  const { data, planningDate: today, planningNow: now, today: calendarToday, now: calendarNow, mutateTasks, notify, addCategory } = usePlanning();
   const [title, setTitle] = useState(task?.title ?? '');
   const [notes, setNotes] = useState(task?.notes ?? '');
   const [duration, setDuration] = useState(durationTime(task?.duration ?? 30));
-  const [category, setCategory] = useState<Category>(task?.category ?? 'work');
+  const [category, setCategory] = useState<Category>(task?.category ?? initialCategory ?? 'work');
   const [priority, setPriority] = useState<Priority>(task?.priority ?? 'normal');
   const [important, setImportant] = useState(task?.important ?? false);
   const [fixed, setFixed] = useState(task?.fixed ?? false);
@@ -59,7 +61,7 @@ function TaskEditorForm({ visible, task, target = 'today', initialDate, onClose 
     <FieldTitle>安排到哪里</FieldTitle><View style={styles.chips}><Chip title="收集箱" selected={!date} onPress={() => { setDate(null); setFixed(false); }} /><Chip title="今天" selected={date === calendarToday} onPress={() => setDate(calendarToday)} /><Chip title="明天" selected={date === nextDay(calendarToday)} onPress={() => setDate(nextDay(calendarToday))} />{today !== calendarToday && <Chip title="继续昨晚" selected={date === today} onPress={() => { setDate(today); setFixed(false); }} />}{date && date !== today && date !== calendarToday && date !== nextDay(calendarToday) && <Chip title={date} selected />}</View>
     {date && <><View style={styles.switchRow}><View><Label style={{ fontSize: 13 }}>固定开始时间</Label><Label muted style={{ fontSize: 11 }}>会议、预约等，救场时保持不变</Label></View><Switch accessibilityLabel="固定开始时间" value={fixed} onValueChange={value => { setFixed(value); if (value && !task && date === today && now >= 1440) { setDate(calendarToday); setTime(clock(calendarNow)); } }} trackColor={{ false: '#E3E1E9', true: '#C6B7EC' }} thumbColor={fixed ? c.purple : '#fff'} /></View>
       {fixed && <TimeField label="开始时间" value={time} onChangeText={setTime} />}</>}
-    <FieldTitle>属于生活的哪一部分</FieldTitle><View style={styles.chips}>{([['work', '工作'], ['life', '生活'], ['health', '健康']] as const).map(([value, label]) => <Chip key={value} title={label} selected={category === value} onPress={() => setCategory(value)} />)}</View>
+    <FieldTitle>属于生活的哪一部分</FieldTitle><CategoryPicker categories={categoriesFor(data)} value={category} onChange={setCategory} onAdd={addCategory} />
     <FieldTitle>优先级</FieldTitle><View style={styles.chips}>{([['high', '优先处理'], ['normal', '正常安排'], ['low', '有空再做']] as const).map(([value, label]) => <Chip key={value} title={label} selected={priority === value} onPress={() => setPriority(value)} />)}</View>
     <View style={styles.switchRow}><View><Label style={{ fontSize: 13 }}>设为重点</Label><Label muted style={{ fontSize: 11 }}>调整日程时，优先保护它</Label></View><Switch accessibilityLabel="设为重点" value={important} onValueChange={setImportant} trackColor={{ false: '#E3E1E9', true: '#C6B7EC' }} thumbColor={important ? c.purple : '#fff'} /></View>
     <FieldTitle>截止日期（选填）</FieldTitle><TextInput accessibilityLabel="截止日期" value={deadline} onChangeText={setDeadline} placeholder="YYYY-MM-DD" placeholderTextColor={c.faint} style={styles.input} />

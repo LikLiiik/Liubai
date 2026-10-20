@@ -1,5 +1,6 @@
 import type { Settings, Task } from './types.ts';
 import { clock, dateKey } from './utils.ts';
+import { validCategories } from './categories.ts';
 
 export const LATEST_END = 1800;
 
@@ -67,6 +68,7 @@ export function validSettings(settings: Settings): boolean {
   return Number.isInteger(settings.dayStart) && settings.dayStart >= 0 && settings.dayStart < 1440
     && Number.isInteger(settings.dayEnd) && settings.dayEnd > settings.dayStart && settings.dayEnd <= LATEST_END
     && Number.isInteger(settings.buffer) && settings.buffer >= 0 && settings.buffer <= 60
+    && validCategories(settings.categories)
     && (settings.inboxRemindersEnabled === undefined || typeof settings.inboxRemindersEnabled === 'boolean')
     && (settings.inboxReminderMinMinutes === undefined || Number.isInteger(settings.inboxReminderMinMinutes) && settings.inboxReminderMinMinutes >= 30 && settings.inboxReminderMinMinutes <= 120);
 }
