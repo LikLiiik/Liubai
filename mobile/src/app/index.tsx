@@ -11,9 +11,10 @@ import { Badge, Button, Card, EmptyState, Icon, Label } from '../components/ui';
 import { TaskEditor } from '../components/TaskEditor';
 import { RescueDialog } from '../components/RescueDialog';
 import { isQuick } from '../quick';
+import { homeGreeting } from '../profile';
 
 export default function Today() {
-  const { data, planningDate: today, planningNow: now, today: calendarToday, setCompleted } = usePlanning();
+  const { data, planningDate: today, planningNow: now, today: calendarToday, now: realNow, setCompleted } = usePlanning();
   const { width } = useWindowDimensions();
   const desktop = width >= 1200;
   const compact = width < 600;
@@ -54,7 +55,7 @@ export default function Today() {
 
       <View style={[styles.hero, { padding: compact ? 23 : 30, minHeight: compact ? 118 : 171 }]}>
         <View style={{ zIndex: 1, maxWidth: compact ? '100%' : '73%' }}>{!compact && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 13 }}><Icon name="sun" size={15} color="#9B86CE" /><Label style={{ fontSize: 10, color: '#9B86CE', letterSpacing: 2 }}>A LITTLE ROOM FOR LIFE</Label></View>}
-          <Label style={{ fontSize: compact ? 23 : 28, fontWeight: '600', lineHeight: 38, color: '#4F446C', letterSpacing: 1 }}>给今天，留一点余地。</Label>
+          <Label style={{ fontSize: compact ? 23 : 28, fontWeight: '600', lineHeight: 38, color: '#4F446C', letterSpacing: 1 }}>{homeGreeting(data.settings.nickname, realNow)}</Label>
           <Label style={{ fontSize: 12, marginTop: 9, color: '#8D819F', lineHeight: 22 }}>{space < 0 ? '想做的事有点多，试着为今天做一点取舍。' : '重要的事慢慢做，意外的事也有位置。'}</Label>
         </View>
         <HeroArt compact={compact} />

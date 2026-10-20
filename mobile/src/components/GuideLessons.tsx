@@ -13,7 +13,18 @@ import { CategoryPicker } from './CategoryPicker';
 import { parseTime } from '../time';
 import { createAdvancePlan, setTaskCompletion } from '../completion';
 import { previewCompletionUndo } from '../completionUndo';
+import { NicknameCard } from './NicknameCard';
+import { homeGreeting } from '../profile';
 export { WeekGuideLesson } from './GuideWeekLesson';
+
+export function NicknameGuideLesson() {
+  const [nickname, setNickname] = useState('小白');
+  const moment = new Date();
+  return <View style={{ marginTop: 18 }}><NicknameCard key={nickname} demo nickname={nickname} onSave={setNickname} />
+    <Label style={{ fontSize: 19, color: c.purple, fontWeight: '600' }}>{homeGreeting(nickname, moment.getHours() * 60 + moment.getMinutes())}</Label>
+    <Label muted style={{ fontSize: 11, marginTop: 6 }}>教学示例，不会修改你的昵称。</Label>
+  </View>;
+}
 
 export function CompletionGuideLesson() {
   const initial = useMemo<Task[]>(() => {

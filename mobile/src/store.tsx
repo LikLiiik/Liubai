@@ -11,6 +11,7 @@ import { addCategoryToData, knownCategory, type CategoryAddResult } from './cate
 import { validTaskTiming } from './quick';
 import { createAdvancePlan, setTaskCompletion } from './completion';
 import { completionAdvanceFor, previewCompletionUndo, validCompletionAdvance, type CompletionUndoChoice } from './completionUndo';
+import { withNickname } from './profile';
 
 type Store = {
   data: AppData;
@@ -27,6 +28,7 @@ type Store = {
   applyPlan: (plan: PlanResult, title: string, options?: { demo: boolean }) => boolean;
   undoPlan: () => void;
   updateSettings: (settings: Settings) => void;
+  setNickname: (name: string) => void;
   addCategory: (name: string) => CategoryAddResult;
   setCompleted: (id: string, completed: boolean, consentKey?: string) => boolean;
   completionOffer: string | null;
@@ -103,7 +105,8 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { void readData(); }, [readData]);
   useEffect(() => {
     const timer = setInterval(() => setTick(new Date()), 30000);
-    return () => clearInterval(timer);
+    const listener = AppState.addEventListener('change', state => { if (state === 'active') setTick(new Date()); });
+    return () => { clearInterval(timer); listener.remove(); };
   }, []);
   useEffect(() => {
     if (!toast) return;
@@ -200,9 +203,11 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
     });
   }, [commit]);
   const updateSettings = useCallback((settings: Settings) => {
-    // Category additions have their own atomic operation; a delayed permission
-    // response must not replace them with an older settings snapshot.
-    commit(previous => ({ ...previous, settings: { ...settings, ...(previous.settings.categories ? { categories: previous.settings.categories } : {}) } }));
+    // Independently saved profile/category data survives delayed permission responses.
+    commit(previous => ({ ...previous, settings: { ...settings, nickname: previous.settings.nickname, ...(previous.settings.categories ? { categories: previous.settings.categories } : {}) } }));
+  }, [commit]);
+  const setNickname = useCallback((name: string) => {
+    commit(previous => { const settings = withNickname(previous.settings, name); return settings ? { ...previous, settings } : previous; });
   }, [commit]);
   const addCategory = useCallback((name: string): CategoryAddResult => {
     let result: CategoryAddResult = { error: '未能添加分类，请重试。' };
@@ -223,7 +228,7 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
   const planning = planningContext(today, now, data.settings);
   return <Context.Provider value={{ data, loading, loadError, saveStatus, today, now,
     planningDate: planning.date, planningNow: planning.now, toast, notify, mutateTasks, applyPlan,
-    undoPlan, updateSettings, addCategory, setCompleted, completionOffer, completionRestore, completionUndo, undoCompletion, dismissCompletionOffer, reset, reload }}>{children}</Context.Provider>;
+    undoPlan, updateSettings, setNickname, addCategory, setCompleted, completionOffer, completionRestore, completionUndo, undoCompletion, dismissCompletionOffer, reset, reload }}>{children}</Context.Provider>;
 }
 
 export function usePlanning() {

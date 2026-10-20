@@ -29,6 +29,7 @@ export interface Task {
 }
 
 export interface Settings {
+  nickname?: string;
   categories?: CategoryDefinition[];
   dayStart: number;
   dayEnd: number;

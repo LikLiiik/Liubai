@@ -11,6 +11,7 @@ import { DEFAULT_FREE_MINUTES, findInboxSuggestion, localMoment } from '../inbox
 import { InboxSuggestionDialog } from '../components/InboxSuggestionDialog';
 import { UpdateCard } from '../components/UpdateCard';
 import { GuideCard } from '../components/GuideCard';
+import { NicknameCard } from '../components/NicknameCard';
 import { appVersion } from '../appVersion';
 import { useRouter } from 'expo-router';
 import { parseTime, parsePreferenceEnd, preferenceTime } from '../time';
@@ -18,7 +19,7 @@ import { Badge, Button, Card, Chip, Confirm, FieldTitle, Icon, Label } from '../
 
 export default function Me() {
   const router = useRouter();
-  const { data, today, now, updateSettings, notify, reset, saveStatus } = usePlanning();
+  const { data, today, now, updateSettings, setNickname, notify, reset, saveStatus } = usePlanning();
   const { width } = useWindowDimensions();
   const [start, setStart] = useState(clock(data.settings.dayStart));
   const [end, setEnd] = useState(preferenceTime(data.settings.dayEnd));
@@ -83,6 +84,7 @@ export default function Me() {
   return <><KeyboardFormScrollView contentContainerStyle={{ padding: width < 600 ? 20 : 38, paddingBottom: 45 }}><View style={{ maxWidth: 900, width: '100%', alignSelf: 'center' }}>
     <Label style={{ fontSize: 28, lineHeight: 38, fontWeight: '700' }}>我的</Label><Label muted style={{ fontSize: 11, marginTop: 6, marginBottom: 27 }}>你的节奏、提醒和数据，都在这里。</Label>
     <GuideCard />
+    <NicknameCard key={data.settings.nickname ?? ''} nickname={data.settings.nickname} onSave={name => { setNickname(name); notify(name ? '昵称已保存。' : '昵称已清除。'); }} />
     <Card style={{ marginBottom: 20 }}><View style={{ flexDirection: 'row', gap: 9, alignItems: 'center' }}><Icon name="sun" size={18} color={c.purple} /><Label style={{ fontWeight: '600', fontSize: 14 }}>日程偏好</Label></View>
       <View style={{ flexDirection: width < 600 ? 'column' : 'row', gap: width < 600 ? 0 : 16 }}><View style={{ flex: width < 600 ? undefined : 1 }}><FieldTitle>从几点开始</FieldTitle><TimeField label="一天开始时间" value={start} onChangeText={setStart} fallback={data.settings.dayStart} /></View><View style={{ flex: width < 600 ? undefined : 1 }}><FieldTitle>希望几点结束</FieldTitle><TimeField label="一天结束时间" value={end} onChangeText={setEnd} mode="end" min={(parseTime(start) ?? data.settings.dayStart) + 1} max={1800} dayStart={parseTime(start) ?? data.settings.dayStart} fallback={data.settings.dayEnd} /></View></View>
       <Label muted style={{ fontSize: 11, marginTop: 10 }}>结束最晚可到次日凌晨 6 点。</Label>
