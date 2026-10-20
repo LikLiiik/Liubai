@@ -107,6 +107,8 @@ npm run build:web
 
 ## 检查更新与发布
 
+发布流程由版本化元数据驱动：构建成品通过 `scripts/verify-apk.py` 校验包名、版本号、ZIP CRC、Hermes 资源、原生库、APK v2 签名与上一版签名连续性，再登记到 `releases/versions/<版本>.json`。推送版本标签后，GitHub Actions 先执行项目检查，再校验下载成品的字节数和 SHA-256，上传 APK、校验文件和更新记录，全部成功才公开 Release。已公开的不同资产不自动覆盖。最后验证公开下载并更新客户端使用的 `releases/android-release.json`；更新源不会提前指向未完成构建。
+
 入口位于“我的 → 应用更新 → 检查更新”。仅在点击后联网读取本仓库 `main` 分支的 `releases/android-release.json`，不发送任务、偏好或登录凭证。对版本号按数字比较，Android 同版本时也比较可读取的构建号。开发版本高于已发布版本时不会显示降级下载；网页提供最新已发布安卓包的下载入口，iOS 不会显示 APK 安装按钮。连接或响应超过 12 秒会提示重试，离开页面则取消检查。
 
 发布记录是客户端的更新源，开发中的 `app.json` 版本号、Git 标签或构建中的任务不会自动成为更新。每次用户明确要求统一打包后，再构建并校验 APK，确认包名和原签名，上传可下载的成品，最后更新并推送 `releases/android-release.json`。保留 `version`、`androidVersionCode`、`package`、`file`、`sizeBytes`、`sha256`、`downloadUrl` 和已通过的 `checks.archiveCrc/package/embeddedBundle`，可追加纯文本 `notes` 更新说明。下载地址支持本仓库 GitHub Release 的 HTTPS APK 资产及现有 Expo APK 链接，长期发布优先使用 GitHub Release 资产。
@@ -151,7 +153,7 @@ npm run build:web
 
 109 项规则测试、代码检查、类型检查通过；安卓内部试用包信息见上方试用部分。此前 Android Hermes 资源、原生网络配置与网页资源已完成验证，iOS 安装包尚未生成。本轮仅功能开发与网页验证，未生成新的安卓包。手机 SQLite 和通知已经接入代码；原生界面、系统权限、后台通知和真实教务读取仍需真机验收。此前网页刷新、核心交互及窄屏布局通过浏览器检查，新增提醒界面受浏览器工具限制尚未验收。数据只保存在当前设备/浏览器，清理应用数据会移除记录。
 
-依赖审计发现 Expo 官方工具链间接依赖的 3 个上游问题：`braces`、`node-forge`、`uuid`。截至本次安装，前两项在注册源中的最新版仍命中告警，自动兼容修复还遇到未发布的 `@expo/cli` 版本；未强制降级 SDK 或跨主版本替换依赖。详情见 [braces](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)、[node-forge](https://github.com/advisories/GHSA-86w9-cpqp-85rv)、[uuid](https://github.com/advisories/GHSA-w5hq-g745-h8pq)。公开部署或发布安装包前需重新审计并处理。
+2026-10-20 发布前依赖审计仍有 3 项上游公告，传播为 26 条依赖链告警（19 条高风险、7 条中风险）：`braces`、`node-forge`、旧版 `uuid`。注册源当前 `braces@3.0.3` 与 `node-forge@1.4.0` 仍命中公告，`uuid@14.0.3` 超出当前工具链要求的主版本。自动修复建议跨主版本降级 Expo / React Native，本轮未强制替换 SDK 依赖，保留告警并继续跟进兼容补丁。APK 文件和签名校验不表示依赖告警已消失。详情见 [braces](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)、[node-forge](https://github.com/advisories/GHSA-86w9-cpqp-85rv)、[uuid](https://github.com/advisories/GHSA-w5hq-g745-h8pq)。
 
 ## 目录
 

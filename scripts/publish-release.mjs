@@ -22,7 +22,8 @@ assert.ok(Number.isInteger(metadata.sizeBytes) && metadata.sizeBytes > 0 && meta
 assert.match(metadata.sha256, /^[a-f0-9]{64}$/);
 assert.match(metadata.sourceCommit, /^[a-f0-9]{40}$/);
 execFileSync('git', ['merge-base', '--is-ancestor', metadata.sourceCommit, 'HEAD']);
-for (const check of ['archiveCrc', 'package', 'embeddedBundle', 'arm64Libraries']) assert.equal(metadata.checks[check], 'passed');
+execFileSync('git', ['diff', '--exit-code', metadata.sourceCommit, 'HEAD', '--', 'mobile']);
+for (const check of ['archiveCrc', 'package', 'embeddedBundle', 'arm64Libraries', 'signature', 'signingContinuity']) assert.equal(metadata.checks[check], 'passed');
 assert.match(metadata.buildDownloadUrl ?? '', /^https:\/\/expo\.dev\/artifacts\/eas\/[A-Za-z0-9_-]+\.apk$/);
 const stableUrl = `https://github.com/${repository}/releases/download/${tag}/${metadata.file}`;
 assert.equal(metadata.downloadUrl, stableUrl);

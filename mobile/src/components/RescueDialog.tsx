@@ -21,7 +21,7 @@ export function RescueDialog({ visible, initialReason = 'interruption', onClose 
   const { width } = useWindowDimensions();
   const [reason, setReason] = useState<RescueReason>(initialReason);
   const [duration, setDuration] = useState(durationTime(30));
-  const minutes = parseDuration(duration) ?? 0;
+  const minutes = reason === 'interruption' || reason === 'overrun' ? parseDuration(duration) ?? 0 : 30;
   const [mode, setMode] = useState<PlanMode>('boundary');
   const candidates = data.tasks.filter(task => inPlanningDay(task, today, data.settings) && !task.completed && !task.fixed);
   const [taskId, setTaskId] = useState(candidates[0]?.id);
