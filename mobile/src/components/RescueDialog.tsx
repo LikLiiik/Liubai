@@ -7,6 +7,7 @@ import { clock } from '../utils';
 import { inPlanningDay } from '../time';
 import { TimeField } from './TimeField';
 import { durationTime, parseDuration } from '../timePicker';
+import { isQuick } from '../quick';
 import type { PlanMode, RescueReason } from '../types';
 import { Badge, Button, Chip, Dialog, FieldTitle, Icon, Label, type IconName } from './ui';
 
@@ -24,7 +25,7 @@ export function RescueDialog({ visible, initialReason = 'interruption', onClose 
   const minutes = reason === 'interruption' || reason === 'overrun' ? parseDuration(duration) ?? 0 : 30;
   const [mode, setMode] = useState<PlanMode>('boundary');
   const active = activeInterruption(data.tasks, today, now);
-  const candidates = data.tasks.filter(task => inPlanningDay(task, today, data.settings) && !task.completed && !task.fixed);
+  const candidates = data.tasks.filter(task => !isQuick(task) && inPlanningDay(task, today, data.settings) && !task.completed && !task.fixed);
   const [taskId, setTaskId] = useState(candidates[0]?.id);
   const plan = useMemo(() => createPlan(data.tasks, data.settings, { reason, minutes, mode, taskId, now, date: today }), [data, reason, minutes, mode, taskId, now, today]);
   return <Dialog visible={visible} wide title="计划变了，我们重新安排" subtitle="固定事项保持原时间。每一项取舍，都先让你看见。" onClose={onClose}

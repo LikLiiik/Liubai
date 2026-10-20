@@ -8,6 +8,7 @@ import { syncNotifications } from './notifications';
 import { planningContext, validSettings } from './time';
 import { applyPlanToData } from './planApply';
 import { addCategoryToData, knownCategory, type CategoryAddResult } from './categories';
+import { validTaskTiming } from './quick';
 
 type Store = {
   data: AppData;
@@ -37,7 +38,7 @@ function isAppData(value: unknown): value is AppData {
   return data.version === 1 && typeof data.demo === 'boolean' && Array.isArray(data.tasks) && Array.isArray(data.history)
     && !!data.settings && validSettings(data.settings)
     && data.tasks.every(task => typeof task.id === 'string' && typeof task.title === 'string'
-      && Number.isFinite(task.duration) && task.duration > 0 && task.duration <= 720
+      && validTaskTiming(task)
       && typeof task.completed === 'boolean' && typeof task.fixed === 'boolean'
       && typeof task.important === 'boolean' && typeof task.notes === 'string'
       && knownCategory(task.category, data.settings) && ['high', 'normal', 'low'].includes(task.priority)

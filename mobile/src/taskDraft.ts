@@ -4,8 +4,10 @@ import { parseDuration } from './timePicker.ts';
 import { scheduleTask } from './scheduler.ts';
 import { overlapConsentKey, validDate } from './week.ts';
 import { knownCategory } from './categories.ts';
+import { isQuick } from './quick.ts';
 
 export type TaskDraft = {
+  kind?: Task['kind'];
   id: string; title: string; notes: string; duration: string; category: Category; priority: Priority;
   important: boolean; fixed: boolean; date: string | null; time: string; deadline: string;
 };
@@ -23,6 +25,20 @@ export function saveTaskDraft(tasks: Task[], settings: Settings, draft: TaskDraf
   }
   if (!title.trim() || title.trim().length > 100) return { kind: 'error', error: '请填写 1–100 字的任务名称。' };
   if (!knownCategory(draft.category, settings)) return { kind: 'error', error: '请选择已有分类，或先添加分类。' };
+  const quick = draft.kind === 'quick';
+  if (original && isQuick(original) !== quick) return { kind: 'error', error: '已有事项不能切换类型，请新建事项。' };
+  if (quick) {
+    const start = parseTime(draft.time);
+    if (!date || !validDate(date) || start === null) return { kind: 'error', error: '请选择有效的提醒日期、小时和分钟。' };
+    const changed = !original || original.date !== date || original.start !== start;
+    if (changed && (date < context.calendarToday || date === context.calendarToday && start <= context.calendarNow)) {
+      return { kind: 'error', error: '提醒时间应晚于当前时间。' };
+    }
+    const updated: Task = { ...original, id, kind: 'quick', title: title.trim(), notes: notes.trim(), duration: 0,
+      category: draft.category, priority: 'normal', important: false, fixed: false, completed: original?.completed ?? false,
+      date, start, deadline: null, postponed: 0 };
+    return { kind: 'saved', tasks: original ? tasks.map(task => task.id === id ? updated : task) : [...tasks, updated], noSlot: false };
+  }
   const minutes = parseDuration(draft.duration);
   if (minutes === null || !Number.isInteger(minutes) || minutes < 5 || minutes > 720) return { kind: 'error', error: '预计时长应在 5 分钟至 12 小时之间。' };
   if (date !== null && !validDate(date)) return { kind: 'error', error: '请选择有效的任务日期。' };

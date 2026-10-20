@@ -66,7 +66,7 @@ export function GuidePermissions() {
   const button = !tasks && !inbox ? '保存为关闭' : !access ? '重新读取权限' : access.status === 'granted' ? '保存提醒选择' : !access.canAskAgain ? '前往设置允许通知' : '允许通知并开启所选提醒';
   return <View style={{ marginTop: 20, borderRadius: 14, padding: 17, borderWidth: 1, borderColor: c.border, gap: 13 }}>
     <View style={{ alignSelf: 'flex-start' }}><Badge title={status} tone={access?.status === 'granted' ? 'green' : 'neutral'} /></View>
-    {([['日程开始提醒', '在任务开始时提醒', tasks, setTasks], ['收集箱空闲提醒', '有较长空档时推荐待办', inbox, setInbox]] as const).map(([title, detail, value, change]) => <View key={title} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+    {([['日程开始提醒', '在任务开始或小事设定时刻提醒', tasks, setTasks], ['收集箱空闲提醒', '有较长空档时推荐待办', inbox, setInbox]] as const).map(([title, detail, value, change]) => <View key={title} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
       <View style={{ flex: 1 }}><Label style={{ fontSize: 13, fontWeight: '600' }}>{title}</Label><Label muted style={{ fontSize: 11 }}>{detail}</Label></View>
       <Switch accessibilityLabel={`教程：${title}`} value={value} disabled={unsupported || busy} onValueChange={change} trackColor={{ false: '#E3E1E9', true: '#C6B7EC' }} thumbColor={value ? c.purple : '#fff'} />
     </View>)}

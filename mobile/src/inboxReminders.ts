@@ -2,6 +2,7 @@ import type { AppData, PlanResult, Settings, Task } from './types.ts';
 import { mergeIntervals } from './scheduler.ts';
 import { daysBetween, finishesByDeadline, normalizePosition, planningContext, relativeStart, shiftDate, validSettings } from './time.ts';
 import { clock, dateKey, durationText } from './utils.ts';
+import { isQuick } from './quick.ts';
 
 export const INBOX_REMINDER_PREFIX = 'liubai-inbox-';
 export const DEFAULT_FREE_MINUTES = 60;
@@ -21,7 +22,7 @@ function minuteOn(date: string, moment: Date): number {
 }
 
 export function freeWindows(tasks: Task[], settings: Settings, date: string): { start: number; end: number }[] {
-  const busy = mergeIntervals(tasks.filter(task => task.date && task.start !== null)
+  const busy = mergeIntervals(tasks.filter(task => !isQuick(task) && task.date && task.start !== null)
     .map(task => ({ start: Math.max(settings.dayStart, relativeStart(task, date)! - (task.fixed ? 0 : settings.buffer)),
       end: Math.min(settings.dayEnd, relativeStart(task, date)! + task.duration + (task.fixed ? 0 : settings.buffer)) })));
   const gaps: { start: number; end: number }[] = [];
@@ -32,7 +33,7 @@ export function freeWindows(tasks: Task[], settings: Settings, date: string): { 
 }
 
 function eligible(task: Task, day: string): boolean {
-  return !task.completed && !task.fixed && !task.courseImport && task.date === null && task.start === null
+  return !isQuick(task) && !task.completed && !task.fixed && !task.courseImport && task.date === null && task.start === null
     && (!task.deadline || task.deadline >= day) && (!task.inboxReminderAfter || task.inboxReminderAfter <= day);
 }
 

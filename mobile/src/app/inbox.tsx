@@ -11,6 +11,7 @@ import { TaskEditor } from '../components/TaskEditor';
 import { categoriesFor } from '../categories';
 import { CategoryPicker } from '../components/CategoryPicker';
 import { KeyboardFormScrollView } from '../components/KeyboardForm';
+import { isQuick } from '../quick';
 
 export default function Inbox() {
   const { data, planningDate: today, planningNow: now, mutateTasks, notify, addCategory } = usePlanning();
@@ -28,7 +29,7 @@ export default function Inbox() {
   ];
 
   function addToToday(task: Task) {
-    if (task.fixed) { setEditor({ task }); return; }
+    if (task.fixed || isQuick(task)) { setEditor({ task }); return; }
     const next = scheduleTask(data.tasks, task.id, data.settings, today, now);
     if (next) { mutateTasks(() => next); const scheduled = next.find(item => item.id === task.id)!; notify(`已安排到今天 ${clock(scheduled.start!)}。`); }
     else notify('今天的剩余时间放不下这件事。可以先编辑为较小的任务，或留给明天。');
@@ -46,7 +47,7 @@ export default function Inbox() {
         <Card style={{ padding: 0, overflow: 'hidden' }}>{group.tasks.map((task, index) => <View key={task.id} style={{ padding: compact ? 17 : 23, borderBottomWidth: index < group.tasks.length - 1 ? 1 : 0, borderBottomColor: c.border }}>
           <View style={{ flexDirection: 'row', gap: 13, alignItems: 'center' }}>
             <Pressable accessibilityRole="checkbox" accessibilityLabel={`完成任务：${task.title}`} accessibilityState={{ checked: false }} onPress={() => { mutateTasks(tasks => tasks.map(item => item.id === task.id ? { ...item, completed: true, completedAt: new Date().toISOString() } : item)); notify('完成了，进展已记录在回顾中。'); }} style={{ width: 20, height: 20, borderWidth: 1.5, borderColor: '#D8D4E2', borderRadius: 7 }} />
-            <Pressable accessibilityRole="button" accessibilityLabel={`编辑任务：${task.title}`} onPress={() => setEditor({ task })} style={{ flex: 1 }}><Label style={{ fontSize: 13, fontWeight: '500' }}>{task.title}</Label><View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 7 }}><Label muted style={{ fontSize: 10 }}>{durationText(task.duration)}</Label><Badge title={categories.find(category => category.id === task.category)?.name ?? '未分类'} tone={task.category === 'health' ? 'green' : 'neutral'} />{task.important && <Badge title="重点" />}{task.date && <Label muted style={{ fontSize: 10 }}>{task.date}{task.start !== null ? ` ${clock(task.start)}` : ' · 待安排'}</Label>}</View></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={`编辑任务：${task.title}`} onPress={() => setEditor({ task })} style={{ flex: 1 }}><Label style={{ fontSize: 13, fontWeight: '500' }}>{task.title}</Label><View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 7 }}><Label muted style={{ fontSize: 10 }}>{isQuick(task) ? '顺手小事' : durationText(task.duration)}</Label><Badge title={categories.find(category => category.id === task.category)?.name ?? '未分类'} tone={task.category === 'health' ? 'green' : 'neutral'} />{task.important && <Badge title="重点" />}{task.date && <Label muted style={{ fontSize: 10 }}>{task.date}{task.start !== null ? ` ${clock(task.start)}` : ' · 待安排'}</Label>}</View></Pressable>
             {!compact && <Button title="安排到今天" icon="arrow-up-right" variant="secondary" small onPress={() => addToToday(task)} />}
           </View>
           {task.postponed >= 3 && <View style={{ backgroundColor: c.orangeBg, padding: 11, borderRadius: 8, marginTop: 14, flexDirection: 'row', gap: 8, alignItems: 'center' }}><Icon name="help-circle" size={14} color={c.orange} /><Label style={{ fontSize: 10, color: c.orange, flex: 1 }}>已延期 {task.postponed} 次。也许可以把第一步写得更小一点。</Label><Button title="改一改" variant="ghost" small onPress={() => setEditor({ task })} /></View>}

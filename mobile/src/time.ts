@@ -1,6 +1,7 @@
 import type { Settings, Task } from './types.ts';
 import { clock, dateKey } from './utils.ts';
 import { validCategories } from './categories.ts';
+import { isQuick } from './quick.ts';
 
 export const LATEST_END = 1800;
 
@@ -97,6 +98,7 @@ export function deadlineLimit(task: Task, date: string): number {
 }
 
 export function overlaps(a: Task, b: Task): boolean {
+  if (isQuick(a) || isQuick(b)) return false;
   if (!a.date || a.start === null || !b.date || b.start === null) return false;
   const start = relativeStart(b, a.date)!;
   return a.start < start + b.duration && start < a.start + a.duration;

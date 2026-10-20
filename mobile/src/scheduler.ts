@@ -2,6 +2,7 @@ import type { Change, PlanMode, PlanResult, RescueRequest, Settings, Task } from
 import { clock, nextDay, taskPosition } from './utils.ts';
 import { deadlineLimit, inPlanningDay, LATEST_END, normalizePosition, relativeStart, validSettings } from './time.ts';
 import { validDate } from './week.ts';
+import { isQuick } from './quick.ts';
 
 type Interval = { start: number; end: number };
 
@@ -17,7 +18,7 @@ export function mergeIntervals(intervals: Interval[]): Interval[] {
 }
 
 export function freeMinutes(tasks: Task[], date: string, from: number, to: number): number {
-  const busy = mergeIntervals(tasks.filter(t => t.fixed && relativeStart(t, date) !== null)
+  const busy = mergeIntervals(tasks.filter(t => !isQuick(t) && t.fixed && relativeStart(t, date) !== null)
     .map(t => ({ start: Math.max(from, relativeStart(t, date)!), end: Math.min(to, relativeStart(t, date)! + t.duration) })));
   return Math.max(0, to - from - busy.reduce((sum, item) => sum + item.end - item.start, 0));
 }
@@ -71,7 +72,7 @@ export function createPlan(original: Task[], settings: Settings, request: Rescue
     const active = activeInterruption(tasks, date, request.now);
     const start = active ? relativeStart(active, date)! + active.duration : request.now;
     const end = start + request.minutes;
-    const collisions = tasks.filter(t => t.id !== active?.id && (t.fixed || t.completed) && relativeStart(t, date) !== null && relativeStart(t, date)! < end && relativeStart(t, date)! + t.duration > start);
+    const collisions = tasks.filter(t => !isQuick(t) && t.id !== active?.id && (t.fixed || t.completed) && relativeStart(t, date) !== null && relativeStart(t, date)! < end && relativeStart(t, date)! + t.duration > start);
     if (end > (settings.dayEnd > 1440 ? LATEST_END : 1440)) { warnings.push('临时事项超出当前一天的范围，请调整时长。'); valid = false; }
     if (active && active.duration + request.minutes > 720) { warnings.push('单项临时事项累计不能超过 12 小时，请先结束当前事项。'); valid = false; }
     if (collisions.length) {
@@ -96,12 +97,12 @@ export function createPlan(original: Task[], settings: Settings, request: Rescue
   }
 
   if (request.reason === 'overrun') {
-    const task = tasks.find(t => t.id === request.taskId && inPlanningDay(t, date, settings) && !t.fixed && !t.completed);
+    const task = tasks.find(t => !isQuick(t) && t.id === request.taskId && inPlanningDay(t, date, settings) && !t.fixed && !t.completed);
     if (!task) { warnings.push('请选择一项尚未完成的灵活任务。'); valid = false; }
     else task.duration = request.minutes;
   }
 
-  const fixed = tasks.filter(t => t.fixed && relativeStart(t, date) !== null && relativeStart(t, date)! < limit && relativeStart(t, date)! + t.duration > 0);
+  const fixed = tasks.filter(t => !isQuick(t) && t.fixed && relativeStart(t, date) !== null && relativeStart(t, date)! < limit && relativeStart(t, date)! + t.duration > 0);
   for (let i = 0; i < fixed.length; i++) {
     for (let j = i + 1; j < fixed.length; j++) {
       if (relativeStart(fixed[i], date)! < relativeStart(fixed[j], date)! + fixed[j].duration && relativeStart(fixed[j], date)! < relativeStart(fixed[i], date)! + fixed[i].duration) {
@@ -110,7 +111,7 @@ export function createPlan(original: Task[], settings: Settings, request: Rescue
       }
     }
   }
-  const candidates = tasks.filter(t => inPlanningDay(t, date, settings) && !t.fixed && !t.completed).sort((a, b) => {
+  const candidates = tasks.filter(t => !isQuick(t) && inPlanningDay(t, date, settings) && !t.fixed && !t.completed).sort((a, b) => {
     if (request.reason === 'overrun') {
       if (a.id === request.taskId) return -1;
       if (b.id === request.taskId) return 1;
@@ -118,7 +119,7 @@ export function createPlan(original: Task[], settings: Settings, request: Rescue
     return compareTasks(a, b, mode, date);
   });
   const candidateIds = new Set(candidates.map(task => task.id));
-  const occupied = tasks.filter(t => t.start !== null && !candidateIds.has(t.id) && t.date)
+  const occupied = tasks.filter(t => !isQuick(t) && t.start !== null && !candidateIds.has(t.id) && t.date)
     .map(t => ({ start: relativeStart(t, date)! - (t.fixed ? 0 : settings.buffer), end: relativeStart(t, date)! + t.duration + (t.fixed ? 0 : settings.buffer) }));
   // Low-energy mode reserves half of the remaining free time for recovery.
   let effortBudget = request.reason === 'lowEnergy' ? Math.floor(freeMinutes(tasks, date, now, settings.dayEnd) / 2) : Infinity;
@@ -152,7 +153,7 @@ export function createPlan(original: Task[], settings: Settings, request: Rescue
           : mode === 'focus' && task.important ? '优先保住今日重点' : '避开固定事项，并留出切换时间' });
     }
   }
-  const scheduled = tasks.filter(t => inPlanningDay(t, date, settings) && t.start !== null && !t.completed);
+  const scheduled = tasks.filter(t => !isQuick(t) && inPlanningDay(t, date, settings) && t.start !== null && !t.completed);
   const finish = Math.max(request.now, ...scheduled.map(t => relativeStart(t, date)! + t.duration));
   const extension = Math.max(0, finish - settings.dayEnd);
   if (extension) warnings.push(`该方案预计比结束时间晚 ${extension} 分钟。`);
@@ -161,10 +162,10 @@ export function createPlan(original: Task[], settings: Settings, request: Rescue
 
 export function scheduleTask(tasks: Task[], taskId: string, settings: Settings, date: string, now: number): Task[] | null {
   const task = tasks.find(item => item.id === taskId);
-  if (!task || task.fixed || task.completed || !validSettings(settings) || !Number.isInteger(now) || now < 0 || now >= LATEST_END
+  if (!task || isQuick(task) || task.fixed || task.completed || !validSettings(settings) || !Number.isInteger(now) || now < 0 || now >= LATEST_END
     || !validDate(date) || !Number.isInteger(task.duration) || task.duration < 5 || task.duration > 720
     || tasks.filter(item => item.id === taskId).length !== 1) return null;
-  const occupied = tasks.filter(t => t.id !== taskId && t.date && t.start !== null)
+  const occupied = tasks.filter(t => !isQuick(t) && t.id !== taskId && t.date && t.start !== null)
     .map(t => ({ start: relativeStart(t, date)! - (t.fixed ? 0 : settings.buffer), end: relativeStart(t, date)! + t.duration + (t.fixed ? 0 : settings.buffer) }));
   const slot = findSlot(task.duration, Math.max(now, settings.dayStart), Math.min(settings.dayEnd, deadlineLimit(task, date)), occupied);
   if (slot === null) return null;

@@ -10,7 +10,21 @@ import { durationTime } from '../timePicker';
 import { addCategoryToData, categoriesFor } from '../categories';
 import { createEmpty } from '../seed';
 import { CategoryPicker } from './CategoryPicker';
+import { parseTime } from '../time';
 export { WeekGuideLesson } from './GuideWeekLesson';
+
+export function QuickGuideLesson() {
+  const [time, setTime] = useState('15:00');
+  const [completed, setCompleted] = useState(false);
+  return <View style={{ marginTop: 20, padding: 16, backgroundColor: c.bg, borderRadius: 13, gap: 12 }}>
+    <View style={{ alignSelf: 'flex-start' }}><Badge title="教学演示 · 不发送通知" tone="neutral" /></View>
+    <TimeField label="演示小事提醒时间" value={time} onChangeText={setTime} />
+    <View style={{ borderWidth: 1, borderStyle: 'dashed', borderColor: c.purple, borderRadius: 12, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      <Icon name={completed ? 'check-circle' : 'bell'} color={c.purple} size={16} /><Label style={{ fontSize: 12, textDecorationLine: completed ? 'line-through' : 'none' }}>{clock(parseTime(time) ?? 900)} · 给花浇水</Label>
+    </View>
+    <Button title={completed ? '恢复未完成' : '试试标记完成'} variant="secondary" small onPress={() => setCompleted(value => !value)} />
+  </View>;
+}
 
 export function CategoryGuideLesson() {
   const [example, setExample] = useState(createEmpty);

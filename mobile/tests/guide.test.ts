@@ -81,6 +81,14 @@ test('users who completed v5 start at category teaching and retain their previou
   assert.equal(visitGuideStep(previous, 'explore').completedRevision, 5);
 });
 
+test('v6 users start at the new quick-reminder lesson while their prior completion stays intact', () => {
+  const previous = { ...freshGuideProgress(), revision: 6, completedRevision: 6, deferredRevision: 6 };
+  assert.equal(shouldShowGuide(previous), true);
+  assert.equal(guideStartStep(previous), 'quick');
+  assert.equal(GUIDE_STEPS.find(step => step.id === 'quick')!.introduced, 7);
+  assert.equal(visitGuideStep(previous, 'quick').completedRevision, 6);
+});
+
 test('missing or damaged progress recovers without crashing and removed step IDs retain completion history', () => {
   for (const raw of ['not json', 'null', '[]', '{}', JSON.stringify({ ...freshGuideProgress(), completedRevision: -1 })]) {
     assert.deepEqual(parseGuideProgress(raw), freshGuideProgress());

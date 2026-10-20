@@ -5,6 +5,7 @@ export type NotificationAccess = { status: 'granted' | 'denied' | 'undetermined'
 export type ScreenName = 'today' | 'week' | 'explore' | 'inbox' | 'review' | 'me';
 
 export interface Task {
+  kind?: 'task' | 'quick';
   id: string;
   title: string;
   notes: string;

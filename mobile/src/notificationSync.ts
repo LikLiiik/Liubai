@@ -1,4 +1,5 @@
 import type { AppData } from './types.ts';
+import { isQuick } from './quick.ts';
 import { INBOX_REMINDER_PREFIX, localMoment, parseReminderLedger, planInboxReminders, retainReminderLedger, suggestionMessage } from './inboxReminders.ts';
 
 export type LocalNotification = { id: string; at: number; title: string; body: string; channel: 'tasks' | 'inbox'; data: Record<string, string> };
@@ -30,7 +31,7 @@ export function createNotificationSync(driver: NotificationDriver): (data: AppDa
         desired.push(...snapshot.tasks.filter(task => !task.completed && task.date && task.start !== null)
           .map(task => ({ task, at: localMoment(task.date!, task.start!).getTime() })).filter(item => item.at > moment.getTime())
           .sort((a, b) => a.at - b.at).slice(0, 50).map(({ task, at }) => ({ id: `liubai-${task.id}`, at,
-            title: '留白 · 接下来做这件事', body: task.title, channel: 'tasks' as const, data: { kind: 'task', taskId: task.id } })));
+            title: isQuick(task) ? '留白 · 顺手做件小事' : '留白 · 接下来做这件事', body: task.title, channel: 'tasks' as const, data: { kind: isQuick(task) ? 'quick' : 'task', taskId: task.id } })));
       }
       for (const suggestion of suggestions) desired.push({ id: INBOX_REMINDER_PREFIX + suggestion.day, at: suggestion.at,
         title: '留白 · 有一段空闲时间', body: suggestionMessage(suggestion), channel: 'inbox',

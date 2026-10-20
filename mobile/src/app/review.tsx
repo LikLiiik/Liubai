@@ -4,6 +4,7 @@ import { usePlanning } from '../store';
 import { colors as c } from '../theme';
 import { dateKey, durationText } from '../utils';
 import { Badge, Button, Card, EmptyState, Icon, Label } from '../components/ui';
+import { isQuick } from '../quick';
 
 export default function Review() {
   const { data, today, undoPlan, notify } = usePlanning();
@@ -36,6 +37,6 @@ export default function Review() {
       </Card>)}
 
     <Label style={{ fontSize: 16, fontWeight: '600', marginTop: 17, marginBottom: 15 }}>完成的事，都算数</Label>
-    <Card style={{ padding: allCompleted.length ? 22 : 10 }}>{allCompleted.length ? allCompleted.map((task, index) => <View key={task.id} style={{ flexDirection: 'row', gap: 12, paddingVertical: 12, borderBottomWidth: index < allCompleted.length - 1 ? 1 : 0, borderBottomColor: c.border }}><Icon name="check-circle" color={c.green} size={17} /><View style={{ flex: 1 }}><Label style={{ fontSize: 12 }}>{task.title}</Label><Label muted style={{ fontSize: 10, marginTop: 3 }}>{task.completedAt ? new Date(task.completedAt).toLocaleDateString('zh-CN') : '已完成'} · 计划 {durationText(task.duration)}</Label></View></View>) : <EmptyState title="第一件小事，也值得记录" description="在任务旁打一个勾，让进展在这里慢慢积累。" />}</Card>
+    <Card style={{ padding: allCompleted.length ? 22 : 10 }}>{allCompleted.length ? allCompleted.map((task, index) => <View key={task.id} style={{ flexDirection: 'row', gap: 12, paddingVertical: 12, borderBottomWidth: index < allCompleted.length - 1 ? 1 : 0, borderBottomColor: c.border }}><Icon name="check-circle" color={c.green} size={17} /><View style={{ flex: 1 }}><Label style={{ fontSize: 12 }}>{task.title}</Label><Label muted style={{ fontSize: 10, marginTop: 3 }}>{task.completedAt ? new Date(task.completedAt).toLocaleDateString('zh-CN') : '已完成'} · {isQuick(task) ? '顺手小事' : `计划 ${durationText(task.duration)}`}</Label></View></View>) : <EmptyState title="第一件小事，也值得记录" description="在任务旁打一个勾，让进展在这里慢慢积累。" />}</Card>
   </View></ScrollView>;
 }

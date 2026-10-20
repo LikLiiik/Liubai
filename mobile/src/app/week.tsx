@@ -11,6 +11,7 @@ import { Button, Chip, Confirm, Dialog, FieldTitle, Icon, Label } from '../compo
 import { TaskEditor } from '../components/TaskEditor';
 import { WeekTaskCard } from '../components/WeekTaskCard';
 import { WeekTaskDetails } from '../components/WeekTaskDetails';
+import { isQuick } from '../quick';
 
 const GUTTER = 44;
 const HEADER = 53;
@@ -85,12 +86,12 @@ export default function Week() {
       y: y - bounds.y - HEADER + offsets.current.y,
       dayWidth, dates, startMinute, endMinute, pixelsPerMinute: pixelsPerMinute, grabOffset: active.grabOffset, rollover: active.rollover,
     }) : null;
-    const validation = position ? moveTaskTo(data.tasks, active.task.id, position, data.settings, today, active.allowedFixed) : null;
+    const validation = position ? moveTaskTo(data.tasks, active.task.id, position, data.settings, today, active.allowedFixed, false, false, now) : null;
     const preview = { task: active.task, position, error: validation && !validation.ok && !validation.confirmation ? validation.error : null,
       hasOverlap: !!validation && !validation.ok && validation.confirmation === 'overlap' };
     latestPreview.current = preview;
     setDrag(preview);
-  }, [data.tasks, data.settings, today, dayWidth, dates, pixelsPerMinute]);
+  }, [data.tasks, data.settings, today, now, dayWidth, dates, pixelsPerMinute]);
 
   const cancelDrag = useCallback(() => {
     if (session.current?.task.fixed) setUnlocked(null);
@@ -107,7 +108,7 @@ export default function Week() {
       if (generation !== dragGeneration.current) return;
       viewport.current = { x: left, y: top, width: measuredWidth, height };
       const grabOffset = segment
-        ? segment.offset * pixelsPerMinute + Math.max(0, Math.min(segment.duration * pixelsPerMinute - 2,
+        ? segment.offset * pixelsPerMinute + Math.max(0, Math.min((isQuick(task) ? 36 : segment.duration * pixelsPerMinute) - 2,
           y - top - HEADER + offsets.current.y - segment.start * pixelsPerMinute)) : 12;
       session.current = { task, grabOffset, x, y, allowedFixed: task.fixed && unlocked === task.id, rollover: !!segment?.offset };
       updatePreview(x, y);
@@ -115,7 +116,7 @@ export default function Week() {
   }
 
   function commitMove(task: Task, position: TaskPosition, allowFixed: boolean, allowOutsidePreferences = false, allowOverlap = false): string | null {
-    const result = moveTaskTo(data.tasks, task.id, position, data.settings, today, allowFixed, allowOutsidePreferences, allowOverlap);
+    const result = moveTaskTo(data.tasks, task.id, position, data.settings, today, allowFixed, allowOutsidePreferences, allowOverlap, now);
     if (!result.ok) return result.error;
     if (!result.change) { notify('仍在原来的位置，没有修改日程。'); return null; }
     if (!applyPlan({ sourceTasks: data.tasks, sourceSettings: data.settings, tasks: result.tasks, changes: [result.change], warnings: result.warnings,
@@ -126,9 +127,9 @@ export default function Week() {
 
   function requestMove(task: Task, position: TaskPosition, allowFixed: boolean, confirmFixed = false): string | null {
     // Preview exceptions without applying them; consent belongs to this exact manual placement.
-    const result = moveTaskTo(data.tasks, task.id, position, data.settings, today, allowFixed, true, true);
+    const result = moveTaskTo(data.tasks, task.id, position, data.settings, today, allowFixed, true, true, now);
     if (!result.ok) return result.error;
-    if (result.change && (confirmFixed || result.conflicts.length || outsidePreferredHours(position.start, task.duration, data.settings))) {
+    if (result.change && (confirmFixed || result.conflicts.length || !isQuick(task) && outsidePreferredHours(position.start, task.duration, data.settings))) {
       setMoveRequest({ task, position, allowFixed, confirmFixed, conflicts: result.conflicts,
         consentKey: overlapConsentKey(result.tasks.find(item => item.id === task.id)!, result.conflicts) });
       return null;
@@ -139,7 +140,7 @@ export default function Week() {
   function confirmMove() {
     if (!moveRequest) return;
     const { task, position, allowFixed } = moveRequest;
-    const current = moveTaskTo(data.tasks, task.id, position, data.settings, today, allowFixed, true, true);
+    const current = moveTaskTo(data.tasks, task.id, position, data.settings, today, allowFixed, true, true, now);
     if (!current.ok) { notify(current.error); setMoveRequest(null); setUnlocked(null); return; }
     const updated = current.tasks.find(item => item.id === task.id)!;
     const consentKey = overlapConsentKey(updated, current.conflicts);
@@ -176,7 +177,7 @@ export default function Week() {
       if (y < 35 && y > -15) dy = -12;
       if (y > bounds.height - HEADER - 35 && y < bounds.height - HEADER + 15) dy = 12;
       const nextX = Math.max(0, Math.min(Math.max(0, gridWidth - bounds.width), offsets.current.x + dx));
-      const nextY = Math.max(0, Math.min(Math.max(0, contentHeight + 14 - (bounds.height - HEADER)), offsets.current.y + dy));
+      const nextY = Math.max(0, Math.min(Math.max(0, contentHeight + 40 - (bounds.height - HEADER)), offsets.current.y + dy));
       if (nextX === offsets.current.x && nextY === offsets.current.y) return;
       offsets.current = { x: nextX, y: nextY };
       horizontal.current?.scrollTo({ x: nextX, animated: false });
@@ -211,7 +212,7 @@ export default function Week() {
     // Resizing changes the scale, so preserve the time at the top instead of its pixel offset.
     const firstMinute = previous?.week === dates[0] ? offsets.current.y / previous.scale
       : Math.max(0, Math.min(data.settings.dayStart, ...scheduled.map(task => task.start!)) - 60);
-    const y = Math.max(0, Math.min(contentHeight + 14 - (boardSize.height - HEADER - 2), firstMinute * pixelsPerMinute));
+    const y = Math.max(0, Math.min(contentHeight + 40 - (boardSize.height - HEADER - 2), firstMinute * pixelsPerMinute));
     scrollLayout.current = { week: dates[0], scale: pixelsPerMinute };
     offsets.current.y = y;
     vertical.current.scrollTo({ y, animated: false });
@@ -259,7 +260,7 @@ export default function Week() {
           </View>
           <ScrollView key={dates[0]} ref={vertical} testID="week-time-scroll" scrollEnabled={!dragging} nestedScrollEnabled scrollEventThrottle={16}
             onScroll={event => { offsets.current.y = event.nativeEvent.contentOffset.y; }} onContentSizeChange={initializeScroll} style={{ flex: 1 }}>
-            <View testID="week-time-grid" style={{ height: contentHeight + 14, width: gridWidth }}>
+            <View testID="week-time-grid" style={{ height: contentHeight + 40, width: gridWidth }}>
               {dates.map((date, index) => <View pointerEvents="none" key={date} style={{ position: 'absolute', top: 0, bottom: 0, left: GUTTER + index * dayWidth, width: dayWidth, borderLeftWidth: 1, borderLeftColor: '#EEEDF3', backgroundColor: date === today ? '#FCFAFF' : index >= 5 ? '#FCFCFD' : '#fff' }} />)}
               {nonPreferredRanges(data.settings).map(range => <View key={range.start} pointerEvents="none" style={{ position: 'absolute', left: GUTTER, right: 0, top: range.start * pixelsPerMinute, height: (range.end - range.start) * pixelsPerMinute, backgroundColor: 'rgba(100,95,115,0.045)' }} />)}
               {hours.map(minute => <View pointerEvents="none" key={minute} style={{ position: 'absolute', left: 0, right: 0, top: (minute - startMinute) * pixelsPerMinute }}>
@@ -267,19 +268,20 @@ export default function Week() {
                 {minute < endMinute && <View style={{ position: 'absolute', left: GUTTER, right: 0, top: 30 * pixelsPerMinute, height: 1, backgroundColor: '#F5F4F8' }} />}
                 <Label style={{ position: 'absolute', left: 4, top: minute === startMinute ? 1 : -7, fontSize: 9, lineHeight: 14, color: c.faint }}>{clock(minute)}</Label>
               </View>)}
-              {dates.flatMap((date, dayIndex) => layoutDay(segments.filter(segment => segment.date === date).map(segment => ({ ...segment.task, date, start: segment.start, duration: segment.duration }))).map(({ task: piece, lane, lanes }) => {
+              {dates.flatMap((date, dayIndex) => layoutDay(segments.filter(segment => segment.date === date).map(segment => ({ ...segment.task, date, start: segment.start, duration: segment.duration })), 36 / pixelsPerMinute).map(({ task: piece, lane, lanes }) => {
                 const segment = segments.find(item => item.task.id === piece.id && item.date === date)!;
                 const task = segment.task;
-                return <WeekTaskCard key={`${task.id}-${date}`} task={task} displayStart={segment.start} continuation={segment.offset > 0} small={dayWidth / lanes < 90} availableHeight={Math.max(12, segment.duration * pixelsPerMinute - 3)} unlocked={unlocked === task.id} dragging={drag?.task.id === task.id}
+                const cardHeight = isQuick(task) ? 36 : Math.max(12, segment.duration * pixelsPerMinute - 3);
+                return <WeekTaskCard key={`${task.id}-${date}`} task={task} displayStart={segment.start} continuation={segment.offset > 0} small={dayWidth / lanes < 90} availableHeight={cardHeight} unlocked={unlocked === task.id} dragging={drag?.task.id === task.id}
                 style={{ position: 'absolute', top: (segment.start - startMinute) * pixelsPerMinute + 2,
                   left: GUTTER + dayIndex * dayWidth + lane * (dayWidth - 4) / lanes + 2,
-                  width: (dayWidth - 4) / lanes - 1, height: Math.max(12, segment.duration * pixelsPerMinute - 3), zIndex: drag?.task.id === task.id ? 2 : 1 }}
+                  width: (dayWidth - 4) / lanes - 1, height: cardHeight, zIndex: drag?.task.id === task.id ? 2 : 1 }}
                 onOpen={() => setSelected(task.id)} onUnlock={() => requestUnlock(task)} onBegin={(x, y) => beginDrag(task, x, y, segment)} onMove={updatePreview} onDrop={drop} onCancel={cancelDrag} />;
               }))}
               {dates.includes(today) && now >= startMinute && now < endMinute && <View pointerEvents="none" style={{ position: 'absolute', top: (now - startMinute) * pixelsPerMinute, left: GUTTER + dates.indexOf(today) * dayWidth, width: dayWidth, height: 1, backgroundColor: '#B292D6', zIndex: 3 }}><View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: '#A383C8', marginTop: -2 }} /></View>}
               {drag?.position && calendarSegments({ ...drag.task, ...drag.position }).filter(segment => inWeek(segment.date)).map(segment => <View key={segment.date} pointerEvents="none" testID="week-drag-preview" style={{ position: 'absolute', top: (segment.start - startMinute) * pixelsPerMinute,
                 left: GUTTER + dates.indexOf(segment.date) * dayWidth + 2, width: dayWidth - 5,
-                height: Math.max(18, segment.duration * pixelsPerMinute - 2), borderWidth: 2, borderStyle: 'dashed',
+                height: isQuick(drag.task) ? 36 : Math.max(18, segment.duration * pixelsPerMinute - 2), borderWidth: 2, borderStyle: 'dashed',
                 borderColor: drag.error ? c.red : c.purple, backgroundColor: drag.error ? 'rgba(251,239,240,0.9)' : 'rgba(231,221,249,0.9)', borderRadius: 7, zIndex: 5, padding: 4 }}>
                 <Label numberOfLines={1} style={{ fontSize: 9, lineHeight: 14, fontWeight: '600', color: drag.error ? c.red : c.purpleDark }}>{segment.offset ? '续 · ' : ''}{clock(segment.start)}</Label><Label numberOfLines={3} style={{ fontSize: dayWidth < 90 ? 9 : 11, lineHeight: 14, color: drag.error ? c.red : c.purpleDark }}>{drag.task.title}</Label>
               </View>)}
@@ -291,14 +293,14 @@ export default function Week() {
         <View style={{ maxWidth: 480, borderRadius: 11, paddingHorizontal: 13, paddingVertical: 10, backgroundColor: drag?.error ? '#F9E8EB' : unlockedTask ? '#FFF3DF' : '#EEE7FA', flexDirection: 'row', alignItems: 'center', gap: 8, boxShadow: '0px 3px 16px rgba(40,25,60,0.10)' }}>
           <Icon name={drag?.error ? 'alert-circle' : unlockedTask ? 'unlock' : 'move'} size={14} color={drag?.error ? c.red : unlockedTask ? c.orange : c.purple} />
           <Label numberOfLines={2} accessibilityLiveRegion="polite" style={{ flexShrink: 1, fontSize: 11, lineHeight: 18, color: drag?.error ? c.red : unlockedTask ? c.orange : c.purpleDark }}>
-            {drag ? drag.error ?? (drag.position ? `${DAYS[dates.indexOf(drag.position.date)]} ${clock(drag.position.start)}–${clock(drag.position.start + drag.task.duration)}${drag.hasOverlap ? ' · 时间重叠，放下后需确认' : ''}${outsidePreferredHours(drag.position.start, drag.task.duration, data.settings) ? ' · 非偏好时段，放下后需确认' : ''}` : '拖进网格即可安排，网格外松手取消') : `「${unlockedTask?.title}」已解锁一次拖动`}
+            {drag ? drag.error ?? (drag.position ? `${DAYS[dates.indexOf(drag.position.date)]} ${clock(drag.position.start)}${isQuick(drag.task) ? ' · 提醒' : `–${clock(drag.position.start + drag.task.duration)}`}${drag.hasOverlap ? ' · 时间重叠，放下后需确认' : ''}${!isQuick(drag.task) && outsidePreferredHours(drag.position.start, drag.task.duration, data.settings) ? ' · 非偏好时段，放下后需确认' : ''}` : '拖进网格即可安排，网格外松手取消') : `「${unlockedTask?.title}」已解锁一次拖动`}
           </Label>
           {unlockedTask && !drag && <Button title="取消" variant="ghost" small onPress={() => setUnlocked(null)} />}
         </View>
       </View>}
     </View>
     <View style={{ height: 23, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-      {([['工作', '#BCAADF'], ['生活', '#DAC09B'], ['健康', '#AAC6B1']] as const).map(([label, color]) => <View key={label} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}><View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: color }} /><Label muted style={{ fontSize: 9 }}>{label}</Label></View>)}
+      {([['工作', '#BCAADF'], ['生活', '#DAC09B'], ...(data.tasks.some(isQuick) ? [['小事', '#BCAADF']] : []), ...(data.tasks.some(task => task.category === 'health') ? [['健康', '#AAC6B1']] : [])]).map(([label, color]) => <View key={label} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}><View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: color }} /><Label muted style={{ fontSize: 9 }}>{label}</Label></View>)}
       <Label numberOfLines={1} muted style={{ flex: 1, fontSize: 9, textAlign: 'right' }}>{Platform.OS === 'web' ? '拖动调整 · 固定需解锁' : '长按拖动 · 固定需解锁'}</Label>
     </View>
 

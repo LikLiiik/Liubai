@@ -1,6 +1,7 @@
 import type { Change, Settings, Task } from './types.ts';
 import { clock, dateKey, taskPosition } from './utils.ts';
 import { finishesByDeadline, normalizePosition, overlaps } from './time.ts';
+import { isQuick } from './quick.ts';
 
 export type TaskPosition = { date: string; start: number };
 export type MoveResult =
@@ -52,7 +53,7 @@ export function outsidePreferredHours(start: number, duration: number, settings:
 }
 
 export function moveTaskTo(tasks: Task[], taskId: string, position: TaskPosition,
-  settings: Settings, today: string, allowFixed = false, allowOutsidePreferences = false, allowOverlap = false): MoveResult {
+  settings: Settings, today: string, allowFixed = false, allowOutsidePreferences = false, allowOverlap = false, currentMinute?: number): MoveResult {
   const task = tasks.find(item => item.id === taskId);
   if (!task) return { ok: false, error: '这项任务已不存在，请重新选择。' };
   if (task.completed) return { ok: false, error: '已完成的任务不参与拖动，请先在今天或收集箱恢复为未完成。' };
@@ -64,6 +65,9 @@ export function moveTaskTo(tasks: Task[], taskId: string, position: TaskPosition
   if (task.date === position.date && task.start === position.start) {
     return { ok: true, tasks, change: null, warnings: [], conflicts: [] };
   }
+  if (isQuick(task) && (position.date < today || position.date === today && currentMinute !== undefined && position.start <= currentMinute)) {
+    return { ok: false, error: '提醒时间应晚于当前时间。' };
+  }
   if (!finishesByDeadline(position.date, position.start, task.duration, task.deadline)) {
     return { ok: false, error: `「${task.title}」最晚 ${task.deadline} 到期，不能移到截止日期之后。` };
   }
@@ -71,7 +75,7 @@ export function moveTaskTo(tasks: Task[], taskId: string, position: TaskPosition
   if (conflicts.length && !allowOverlap) {
     return { ok: false, confirmation: 'overlap', error: `与${conflicts.map(item => `「${item.title}」`).join('、')}时间重叠，需要确认本次安排。` };
   }
-  const outside = outsidePreferredHours(position.start, task.duration, settings);
+  const outside = !isQuick(task) && outsidePreferredHours(position.start, task.duration, settings);
   if (outside && !allowOutsidePreferences) {
     return { ok: false, confirmation: 'outside-preferences', error: `超出偏好时段 ${clock(settings.dayStart)}–${clock(settings.dayEnd)}，需要确认本次安排。` };
   }
@@ -90,7 +94,9 @@ export function moveTaskTo(tasks: Task[], taskId: string, position: TaskPosition
 export type PlacedTask = { task: Task; lane: number; lanes: number };
 
 // Existing overlapping items are displayed side by side instead of covering one another.
-export function layoutDay(tasks: Task[]): PlacedTask[] {
+export function layoutDay(tasks: Task[], pointDisplayMinutes = 30): PlacedTask[] {
+  // A reminder's small card needs visual space, but reserves no scheduling time.
+  const displayDuration = (task: Task) => isQuick(task) ? pointDisplayMinutes : task.duration;
   const sorted = tasks.filter(task => task.start !== null).slice().sort((a, b) => a.start! - b.start! || b.duration - a.duration);
   const result: PlacedTask[] = [];
   let cluster: Task[] = [];
@@ -100,7 +106,7 @@ export function layoutDay(tasks: Task[]): PlacedTask[] {
     const placed = cluster.map(task => {
       let lane = laneEnds.findIndex(value => value <= task.start!);
       if (lane === -1) lane = laneEnds.length;
-      laneEnds[lane] = task.start! + task.duration;
+      laneEnds[lane] = task.start! + displayDuration(task);
       return { task, lane };
     });
     result.push(...placed.map(item => ({ ...item, lanes: laneEnds.length })));
@@ -108,8 +114,8 @@ export function layoutDay(tasks: Task[]): PlacedTask[] {
   }
   for (const task of sorted) {
     if (cluster.length && task.start! >= end) flush();
-    if (!cluster.length) end = task.start! + task.duration;
-    else end = Math.max(end, task.start! + task.duration);
+    if (!cluster.length) end = task.start! + displayDuration(task);
+    else end = Math.max(end, task.start! + displayDuration(task));
     cluster.push(task);
   }
   flush();
