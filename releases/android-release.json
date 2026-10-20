@@ -1,24 +1,31 @@
 {
   "name": "留白",
-  "version": "0.2.0",
-  "androidVersionCode": 3,
+  "version": "0.3.0",
+  "androidVersionCode": 6,
   "package": "app.liubai.planner",
-  "file": "liubai-0.2.0-android.apk",
-  "sizeBytes": 99737895,
-  "sha256": "a01343a89c05437634b6387dfde66e4a2ce69fa95c85ba00faacf8fdb5812175",
-  "buildId": "0945a938-cdbf-47e3-90cc-a08f1b88db6d",
-  "buildUrl": "https://expo.dev/accounts/likliiik/projects/liubai-planner/builds/0945a938-cdbf-47e3-90cc-a08f1b88db6d",
-  "downloadUrl": "https://expo.dev/artifacts/eas/cV8OTyJnuqQ-zjdnZtF0LD0Dl9TYmtKOKWmNQUaOMLY.apk",
-  "sourceCommit": "b286510a158101b2d121fa57aed66263846f0a3d",
+  "sizeBytes": 99802883,
+  "sha256": "7ab224dde022c8f853bac06509bc2c3f047a2078157130f2fa3edc2093af76fe",
+  "signingCertificateSha256": [
+    "fd79101f01e41c48c8370ded86dd4e420eee63f22cd5fdc3d94ce9f0be14cf9e"
+  ],
   "checks": {
     "archiveCrc": "passed",
     "package": "passed",
     "embeddedBundle": "passed",
     "arm64Libraries": "passed",
     "schoolReaderBundle": "passed",
+    "schoolNetworkResource": "passed",
     "nativeWebView": "passed",
-    "schoolNetworkResource": "passed"
+    "signature": "passed",
+    "signingContinuity": "passed"
   },
+  "file": "liubai-0.3.0-android.apk",
+  "buildId": "eee8b3f5-da48-43d0-bd70-1fd17607bf59",
+  "buildUrl": "https://expo.dev/accounts/likliiik/projects/liubai-planner/builds/eee8b3f5-da48-43d0-bd70-1fd17607bf59",
+  "buildDownloadUrl": "https://expo.dev/artifacts/eas/uYPAllSfgUcWt30cXNif5e8nxylB0cX7Tv2UdZ8YYvE.apk",
+  "downloadUrl": "https://github.com/LikLiiik/Liubai/releases/download/v0.3.0/liubai-0.3.0-android.apk",
+  "sourceCommit": "3e64d791e302f3458bc5864942d449c5c17d7bf0",
+  "notes": "· 时间与时长统一支持填写、自动补全，以及小时和分钟双滚轮。\n· 新手教程包含独立示例和通知权限引导，完成后直接进入个人日程。\n· 收集箱待办可在较长连续空档中提醒，确认后再安排。\n· 支持用户确认后手动安排重叠事项，自动排程继续避开已有占用。\n· 我的中可检查已发布版本并下载更新。\n· 保留跨夜偏好至次日 06:00、全天周览和哈工大（深圳）本科课表导入。",
   "deviceTesting": "pending",
   "schoolLiveLogin": "pending",
   "schoolLiveCourseQuery": "pending"
