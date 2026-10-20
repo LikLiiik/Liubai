@@ -4,15 +4,19 @@ import { createPlan } from '../scheduler';
 import type { Task } from '../types';
 import { clock, taskPosition } from '../utils';
 import { colors as c } from '../theme';
-import { Badge, Button, Icon, Label } from './ui';
-import { TimeWheelPicker } from './TimeField';
+import { Badge, Button, FieldTitle, Icon, Label } from './ui';
+import { TimeField, TimeWheelPicker } from './TimeField';
+import { durationTime } from '../timePicker';
 export { WeekGuideLesson } from './GuideWeekLesson';
 
 export function TimeGuideLesson() {
   const [time, setTime] = useState(870);
+  const [duration, setDuration] = useState(durationTime(90));
   return <View style={{ marginTop: 20, padding: 16, backgroundColor: c.bg, borderRadius: 13 }}>
     <View style={{ alignSelf: 'flex-start', marginBottom: 12 }}><Badge title="教学演示 · 不改变日程" tone="neutral" /></View>
+    <Label muted style={{ fontSize: 12, marginBottom: 8 }}>时间点</Label>
     <TimeWheelPicker label="演示开始时间" value={time} onChange={setTime} />
+    <FieldTitle>事件时长</FieldTitle><TimeField label="演示事件时长" value={duration} onChangeText={setDuration} mode="duration" min={5} max={720} fallback={90} />
   </View>;
 }
 

@@ -18,7 +18,7 @@ export function WeekTaskDetails({ task, fallbackDate, fallbackStart, onClose, on
   const input = { borderWidth: 1, borderColor: '#E5E3ED', borderRadius: 10, padding: 12, fontFamily: font, fontSize: 14, color: c.text, minHeight: 44 };
   function save() {
     const start = parseTime(time);
-    if (start === null) { setError('请填写有效的时间，例如 14:30。'); return; }
+    if (start === null) { setError('请选择有效的小时和分钟。'); return; }
     const message = onSave({ date, start });
     if (message) setError(message);
   }

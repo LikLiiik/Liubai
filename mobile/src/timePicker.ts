@@ -37,3 +37,21 @@ export function readWheelNumber(text: string, values: number[], selected: number
   const candidates = values.filter(value => value % 24 === number);
   return candidates.find(value => Math.floor(value / 24) === Math.floor(selected / 24)) ?? candidates[0] ?? null;
 }
+
+// A leading zero may be a draft of 05, for example at a five-minute minimum.
+// Only complete, allowed values are ever sent to the parent form.
+export function readWheelDraft(text: string, values: number[], selected: number, clockHour = false): { text: string; value: number | null } | null {
+  const normalized = text.replace(/[０-９]/g, digit => String(digit.charCodeAt(0) - 65296));
+  if (!/^\d{0,2}$/.test(normalized)) return null;
+  if (!normalized) return { text: '', value: null };
+  const value = readWheelNumber(normalized, values, selected, clockHour);
+  if (value !== null) return { text: normalized, value };
+  const prefix = values.some(item => String(clockHour ? item % 24 : item).padStart(2, '0').startsWith(normalized));
+  return prefix ? { text: normalized, value: null } : null;
+}
+
+export function changePickerDay(value: number, day: number, min: number, max: number): number {
+  const lower = Math.max(min, day * 1440), upper = Math.min(max, (day + 1) * 1440 - 1);
+  if (lower > upper) return value;
+  return Math.min(upper, Math.max(lower, value % 1440 + day * 1440));
+}
