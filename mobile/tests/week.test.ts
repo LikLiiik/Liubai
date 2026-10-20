@@ -109,10 +109,10 @@ test('fixed and non-preferred hours require independent, one-time permissions', 
   }
 });
 
-test('confirmation cannot bypass overlaps, hard deadlines or crossing midnight', () => {
+test('confirmation cannot bypass overlaps or hard deadlines, including midnight endings', () => {
   assert.equal(moveTaskTo([task('a'), task('b', { start: 0 })], 'a', { date: today, start: 0 }, settings, today, true, true).ok, false);
   assert.equal(moveTaskTo([task('a', { deadline: today })], 'a', { date: '2026-10-20', start: 0 }, settings, today, true, true).ok, false);
-  assert.equal(moveTaskTo([task('a')], 'a', { date: today, start: 1395 }, settings, today, true, true).ok, false);
+  assert.equal(moveTaskTo([task('a', { deadline: today })], 'a', { date: today, start: 1395 }, settings, today, true, true).ok, false);
 });
 
 test('full-day grid maps midnight and late-night positions regardless of preferences', () => {

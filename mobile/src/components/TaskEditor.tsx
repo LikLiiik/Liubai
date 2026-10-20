@@ -5,14 +5,9 @@ import { usePlanning } from '../store';
 import { clock, nextDay, uid } from '../utils';
 import { scheduleTask } from '../scheduler';
 import type { Category, Priority, Task } from '../types';
+import { finishesByDeadline, overlaps, parseTime } from '../time';
 import { Button, Chip, Confirm, Dialog, FieldTitle, Label } from './ui';
-
-export function parseTime(value: string): number | null {
-  const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
-  if (!match) return null;
-  const hours = Number(match[1]), minutes = Number(match[2]);
-  return hours < 24 && minutes < 60 ? hours * 60 + minutes : null;
-}
+export { parseTime } from '../time';
 
 type TaskEditorProps = { visible: boolean; task?: Task | null; target?: 'today' | 'inbox'; initialDate?: string; onClose: () => void };
 
@@ -21,7 +16,7 @@ export function TaskEditor(props: TaskEditorProps) {
 }
 
 function TaskEditorForm({ visible, task, target = 'today', initialDate, onClose }: TaskEditorProps) {
-  const { data, today, now, mutateTasks, notify } = usePlanning();
+  const { data, planningDate: today, planningNow: now, today: calendarToday, now: calendarNow, mutateTasks, notify } = usePlanning();
   const [title, setTitle] = useState(task?.title ?? '');
   const [notes, setNotes] = useState(task?.notes ?? '');
   const [duration, setDuration] = useState(String(task?.duration ?? 30));
@@ -45,10 +40,10 @@ function TaskEditorForm({ visible, task, target = 'today', initialDate, onClose 
     // Editing the title or notes must preserve a position chosen in the week grid.
     const preservedStart = !fixed && date && task?.date === date ? task.start : null;
     const start = fixed && date ? parseTime(time) : preservedStart;
-    if (fixed && date && (start === null || start + minutes > 1440)) { setError('请填写有效的开始时间，例如 14:30；事项需要在当天结束。'); return; }
+    if (fixed && date && start === null) { setError('请填写有效的开始时间，例如 14、1430、14:30。'); return; }
     const timingChanged = !task || task.date !== date || task.start !== start || task.duration !== minutes;
-    if (date && start !== null && start + minutes > 1440) { setError('这项任务超出当天范围，请调整时间或时长。'); return; }
-    if (timingChanged && date && start !== null && data.tasks.some(item => item.id !== task?.id && item.date === date && item.start !== null && item.start < start + minutes && item.start + item.duration > start)) {
+    if ((timingChanged || task?.deadline !== (deadline || null)) && date && start !== null && !finishesByDeadline(date, start, minutes, deadline || null)) { setError('任务结束时间超过截止日期，请调整时间或时长。'); return; }
+    if (timingChanged && date && start !== null && data.tasks.some(item => item.id !== task?.id && overlaps({ ...item, date, start, duration: minutes }, item))) {
       setError('这个时间已有安排，请换一个时间，或先通过一键救场腾出位置。'); return;
     }
     const updated: Task = { id: task?.id ?? uid(), title: title.trim(), notes: notes.trim(), duration: minutes,
@@ -76,7 +71,7 @@ function TaskEditorForm({ visible, task, target = 'today', initialDate, onClose 
     <FieldTitle>预计需要多久</FieldTitle><View style={styles.chips}>{[15, 30, 45, 60, 90].map(value => <Chip key={value} title={`${value} 分钟`} selected={duration === String(value)} onPress={() => setDuration(String(value))} />)}</View>
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 10 }}><TextInput accessibilityLabel="自定义时长" keyboardType="number-pad" value={duration} onChangeText={setDuration} style={[styles.input, { width: 90 }]} /><Label muted style={{ fontSize: 12 }}>分钟，也可以自己填写</Label></View>
     <FieldTitle>安排到哪里</FieldTitle><View style={styles.chips}><Chip title="收集箱" selected={!date} onPress={() => { setDate(null); setFixed(false); }} /><Chip title="今天" selected={date === today} onPress={() => setDate(today)} /><Chip title="明天" selected={date === nextDay(today)} onPress={() => setDate(nextDay(today))} />{date && date !== today && date !== nextDay(today) && <Chip title={date} selected />}</View>
-    {date && <><View style={styles.switchRow}><View><Label style={{ fontSize: 13 }}>固定开始时间</Label><Label muted style={{ fontSize: 11 }}>会议、预约等，救场时保持不变</Label></View><Switch accessibilityLabel="固定开始时间" value={fixed} onValueChange={setFixed} trackColor={{ false: '#E3E1E9', true: '#C6B7EC' }} thumbColor={fixed ? c.purple : '#fff'} /></View>
+    {date && <><View style={styles.switchRow}><View><Label style={{ fontSize: 13 }}>固定开始时间</Label><Label muted style={{ fontSize: 11 }}>会议、预约等，救场时保持不变</Label></View><Switch accessibilityLabel="固定开始时间" value={fixed} onValueChange={value => { setFixed(value); if (value && !task && date === today && now >= 1440) { setDate(calendarToday); setTime(clock(calendarNow)); } }} trackColor={{ false: '#E3E1E9', true: '#C6B7EC' }} thumbColor={fixed ? c.purple : '#fff'} /></View>
       {fixed && <TextInput accessibilityLabel="开始时间" value={time} onChangeText={setTime} placeholder="14:30" style={styles.input} />}</>}
     <FieldTitle>属于生活的哪一部分</FieldTitle><View style={styles.chips}>{([['work', '工作'], ['life', '生活'], ['health', '健康']] as const).map(([value, label]) => <Chip key={value} title={label} selected={category === value} onPress={() => setCategory(value)} />)}</View>
     <FieldTitle>优先级</FieldTitle><View style={styles.chips}>{([['high', '优先处理'], ['normal', '正常安排'], ['low', '有空再做']] as const).map(([value, label]) => <Chip key={value} title={label} selected={priority === value} onPress={() => setPriority(value)} />)}</View>

@@ -4,17 +4,18 @@ import { usePlanning } from '../store';
 import { colors as c } from '../theme';
 import { clock, durationText, nextDay } from '../utils';
 import { scheduleTask } from '../scheduler';
+import { inPlanningDay } from '../time';
 import type { Task } from '../types';
 import { Badge, Button, Card, Chip, EmptyState, Icon, Label } from '../components/ui';
 import { TaskEditor } from '../components/TaskEditor';
 
 export default function Inbox() {
-  const { data, today, now, mutateTasks, notify } = usePlanning();
+  const { data, planningDate: today, planningNow: now, mutateTasks, notify } = usePlanning();
   const { width } = useWindowDimensions();
   const compact = width < 600;
   const [editor, setEditor] = useState<{ task?: Task } | null>(null);
   const [filter, setFilter] = useState<'all' | 'work' | 'life' | 'health'>('all');
-  const pending = data.tasks.filter(task => !task.completed && task.date !== today && (filter === 'all' || task.category === filter));
+  const pending = data.tasks.filter(task => !task.completed && !inPlanningDay(task, today, data.settings) && (filter === 'all' || task.category === filter));
   const groups = [
     { title: '先记着，还没决定什么时候做', hint: '收集箱', tasks: pending.filter(task => !task.date), icon: 'inbox' as const },
     { title: '从之前带来的事', hint: '需要重新安排', tasks: pending.filter(task => task.date && task.date < today), icon: 'rotate-ccw' as const },

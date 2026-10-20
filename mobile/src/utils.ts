@@ -9,7 +9,8 @@ export function nextDay(key: string): string {
 }
 
 export function clock(minutes: number): string {
-  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(Math.round(minutes % 60)).padStart(2, '0')}`;
+  if (minutes === 1440) return '24:00';
+  return `${minutes > 1440 ? '次日 ' : ''}${String(Math.floor(minutes / 60) % 24).padStart(2, '0')}:${String(Math.round(minutes % 60)).padStart(2, '0')}`;
 }
 
 export function durationText(minutes: number): string {

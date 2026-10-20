@@ -10,6 +10,8 @@ type Props = {
   small: boolean;
   tray?: boolean;
   availableHeight?: number;
+  displayStart?: number;
+  continuation?: boolean;
   unlocked: boolean;
   dragging: boolean;
   onOpen: () => void;
@@ -57,7 +59,7 @@ export class WeekTaskCard extends React.PureComponent<Props, { highlight: boolea
   }
 
   render() {
-  const { task, small, tray, unlocked, dragging, style, availableHeight } = this.props;
+  const { task, small, tray, unlocked, dragging, style, availableHeight, displayStart, continuation } = this.props;
   const { highlight } = this.state;
   const locked = task.fixed && !unlocked;
   const palette = task.completed ? ['#F2F3F5', '#C9CED4', '#939AA4']
@@ -90,12 +92,12 @@ export class WeekTaskCard extends React.PureComponent<Props, { highlight: boolea
           {task.fixed && <Icon name={unlocked ? 'unlock' : 'lock'} size={small ? 9 : 10} color={palette[2]} />}
           {task.completed && <Icon name="check" size={10} color={palette[2]} />}
           <Label numberOfLines={1} style={{ fontSize: small ? 8 : 9, lineHeight: 13, color: palette[2], flex: 1 }}>
-            {tray ? `${task.duration} 分钟` : clock(task.start!)}
+            {tray ? `${task.duration} 分钟` : `${continuation ? '续 · ' : ''}${clock(displayStart ?? task.start!)}`}
           </Label>
         </View>}
         <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 2 }}>
           {short && task.fixed && <Icon name={unlocked ? 'unlock' : 'lock'} size={small ? 8 : 10} color={palette[2]} />}
-          <Label numberOfLines={textLines} style={{ flex: 1, fontSize: small ? 9 : 11, lineHeight: small ? 12 : 16, color: palette[2], fontWeight: '500', textDecorationLine: task.completed ? 'line-through' : 'none' }}>{task.title}</Label>
+          <Label numberOfLines={textLines} style={{ flex: 1, fontSize: small ? 9 : 11, lineHeight: small ? 12 : 16, color: palette[2], fontWeight: '500', textDecorationLine: task.completed ? 'line-through' : 'none' }}>{short && continuation ? '续 · ' : ''}{task.title}</Label>
         </View>
         {tray && task.date && <Label style={{ fontSize: 9, color: palette[2], lineHeight: 15 }}>{task.date.slice(5).replace('-', '/')} · 待安排</Label>}
       </View>

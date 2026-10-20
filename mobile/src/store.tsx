@@ -5,6 +5,7 @@ import { storage } from './storage';
 import { createDemo, createEmpty } from './seed';
 import { dateKey, uid } from './utils';
 import { syncNotifications } from './notifications';
+import { planningContext, validSettings } from './time';
 
 type Store = {
   data: AppData;
@@ -13,6 +14,8 @@ type Store = {
   saveStatus: 'saving' | 'saved' | 'error';
   today: string;
   now: number;
+  planningDate: string;
+  planningNow: number;
   toast: string | null;
   notify: (text: string) => void;
   mutateTasks: (update: (tasks: Task[]) => Task[]) => void;
@@ -29,9 +32,7 @@ function isAppData(value: unknown): value is AppData {
   if (!value || typeof value !== 'object') return false;
   const data = value as AppData;
   return data.version === 1 && typeof data.demo === 'boolean' && Array.isArray(data.tasks) && Array.isArray(data.history)
-    && !!data.settings && Number.isFinite(data.settings.dayStart) && Number.isFinite(data.settings.dayEnd)
-    && data.settings.dayStart >= 0 && data.settings.dayEnd < 1440 && data.settings.dayEnd > data.settings.dayStart
-    && Number.isFinite(data.settings.buffer) && data.settings.buffer >= 0
+    && !!data.settings && validSettings(data.settings)
     && data.tasks.every(task => typeof task.id === 'string' && typeof task.title === 'string'
       && Number.isFinite(task.duration) && task.duration > 0 && task.duration <= 720
       && typeof task.completed === 'boolean' && typeof task.fixed === 'boolean'
@@ -113,8 +114,10 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
     notify(demo ? '已载入示例日程，模拟时间为 14:00。' : '空白的一天，准备好了。');
   }, [notify]);
 
-  return <Context.Provider value={{ data, loading, loadError, saveStatus, today,
-    now: data.demo ? 840 : tick.getHours() * 60 + tick.getMinutes(), toast, notify, mutateTasks, applyPlan,
+  const now = data.demo ? 840 : tick.getHours() * 60 + tick.getMinutes();
+  const planning = planningContext(today, now, data.settings);
+  return <Context.Provider value={{ data, loading, loadError, saveStatus, today, now,
+    planningDate: planning.date, planningNow: planning.now, toast, notify, mutateTasks, applyPlan,
     undoPlan, updateSettings, reset, reload }}>{children}</Context.Provider>;
 }
 

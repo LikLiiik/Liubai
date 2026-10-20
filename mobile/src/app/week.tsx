@@ -5,6 +5,7 @@ import { colors as c } from '../theme';
 import { clock, durationText } from '../utils';
 import { addDays, layoutDay, moveTaskTo, outsidePreferredHours, positionFromPoint, weekDates, type TaskPosition } from '../week';
 import type { Task } from '../types';
+import { calendarSegments, nonPreferredRanges, type CalendarSegment } from '../time';
 import { Button, Chip, Confirm, Dialog, FieldTitle, Icon, Label } from '../components/ui';
 import { TaskEditor } from '../components/TaskEditor';
 import { WeekTaskCard } from '../components/WeekTaskCard';
@@ -16,7 +17,7 @@ const startMinute = 0;
 const endMinute = 1440;
 const DAYS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 type Rect = { x: number; y: number; width: number; height: number };
-type DragSession = { task: Task; grabOffset: number; x: number; y: number; allowedFixed: boolean };
+type DragSession = { task: Task; grabOffset: number; x: number; y: number; allowedFixed: boolean; rollover: boolean };
 type DragPreview = { task: Task; position: TaskPosition | null; error: string | null };
 
 export default function Week() {
@@ -45,7 +46,8 @@ export default function Week() {
   const dragGeneration = useRef(0);
   const dates = useMemo(() => weekDates(anchor), [anchor]);
   const inWeek = useCallback((date: string | null) => !!date && date >= dates[0] && date <= dates[6], [dates]);
-  const weekTasks = useMemo(() => data.tasks.filter(task => inWeek(task.date)), [data.tasks, inWeek]);
+  const segments = useMemo(() => data.tasks.flatMap(calendarSegments).filter(segment => inWeek(segment.date)), [data.tasks, inWeek]);
+  const weekTasks = useMemo(() => data.tasks.filter(task => inWeek(task.date) || segments.some(segment => segment.task.id === task.id)), [data.tasks, inWeek, segments]);
   const scheduled = weekTasks.filter(task => task.start !== null);
   const pending = data.tasks.filter(task => !task.completed && (!task.date || inWeek(task.date) && task.start === null));
   const selectedTask = data.tasks.find(task => task.id === selected);
@@ -77,7 +79,7 @@ export default function Week() {
     const position = inside ? positionFromPoint({
       x: x - bounds.x + offsets.current.x - GUTTER,
       y: y - bounds.y - HEADER + offsets.current.y,
-      dayWidth, dates, startMinute, endMinute, pixelsPerMinute: pixelsPerMinute, grabOffset: active.grabOffset,
+      dayWidth, dates, startMinute, endMinute, pixelsPerMinute: pixelsPerMinute, grabOffset: active.grabOffset, rollover: active.rollover,
     }) : null;
     const validation = position ? moveTaskTo(data.tasks, active.task.id, position, data.settings, today, active.allowedFixed) : null;
     const preview = { task: active.task, position, error: validation && !validation.ok && !validation.confirmation ? validation.error : null };
@@ -93,16 +95,16 @@ export default function Week() {
     setDrag(null);
   }, []);
 
-  function beginDrag(task: Task, x: number, y: number) {
+  function beginDrag(task: Task, x: number, y: number, segment?: CalendarSegment) {
     if (task.completed || task.fixed && unlocked !== task.id) return;
     const generation = ++dragGeneration.current;
     board.current?.measureInWindow((left, top, measuredWidth, height) => {
       if (generation !== dragGeneration.current) return;
       viewport.current = { x: left, y: top, width: measuredWidth, height };
-      const grabOffset = task.start !== null && inWeek(task.date)
-        ? Math.max(0, Math.min(task.duration * pixelsPerMinute - 2,
-          y - top - HEADER + offsets.current.y - (task.start - startMinute) * pixelsPerMinute)) : 12;
-      session.current = { task, grabOffset, x, y, allowedFixed: task.fixed && unlocked === task.id };
+      const grabOffset = segment
+        ? segment.offset * pixelsPerMinute + Math.max(0, Math.min(segment.duration * pixelsPerMinute - 2,
+          y - top - HEADER + offsets.current.y - segment.start * pixelsPerMinute)) : 12;
+      session.current = { task, grabOffset, x, y, allowedFixed: task.fixed && unlocked === task.id, rollover: !!segment?.offset };
       updatePreview(x, y);
     });
   }
@@ -237,25 +239,28 @@ export default function Week() {
             onScroll={event => { offsets.current.y = event.nativeEvent.contentOffset.y; }} onContentSizeChange={initializeScroll} style={{ flex: 1 }}>
             <View testID="week-time-grid" style={{ height: contentHeight + 14, width: gridWidth }}>
               {dates.map((date, index) => <View pointerEvents="none" key={date} style={{ position: 'absolute', top: 0, bottom: 0, left: GUTTER + index * dayWidth, width: dayWidth, borderLeftWidth: 1, borderLeftColor: '#EEEDF3', backgroundColor: date === today ? '#FCFAFF' : index >= 5 ? '#FCFCFD' : '#fff' }} />)}
-              <View pointerEvents="none" style={{ position: 'absolute', left: GUTTER, right: 0, top: 0, height: data.settings.dayStart * pixelsPerMinute, backgroundColor: 'rgba(100,95,115,0.045)' }} />
-              <View pointerEvents="none" style={{ position: 'absolute', left: GUTTER, right: 0, top: data.settings.dayEnd * pixelsPerMinute, height: (1440 - data.settings.dayEnd) * pixelsPerMinute, backgroundColor: 'rgba(100,95,115,0.045)' }} />
+              {nonPreferredRanges(data.settings).map(range => <View key={range.start} pointerEvents="none" style={{ position: 'absolute', left: GUTTER, right: 0, top: range.start * pixelsPerMinute, height: (range.end - range.start) * pixelsPerMinute, backgroundColor: 'rgba(100,95,115,0.045)' }} />)}
               {hours.map(minute => <View pointerEvents="none" key={minute} style={{ position: 'absolute', left: 0, right: 0, top: (minute - startMinute) * pixelsPerMinute }}>
                 <View style={{ position: 'absolute', left: GUTTER, right: 0, height: 1, backgroundColor: '#ECEAF2' }} />
                 {minute < endMinute && <View style={{ position: 'absolute', left: GUTTER, right: 0, top: 30 * pixelsPerMinute, height: 1, backgroundColor: '#F5F4F8' }} />}
                 <Label style={{ position: 'absolute', left: 4, top: minute === startMinute ? 1 : -7, fontSize: 9, lineHeight: 14, color: c.faint }}>{clock(minute)}</Label>
               </View>)}
-              {dates.flatMap((date, dayIndex) => layoutDay(scheduled.filter(task => task.date === date)).map(({ task, lane, lanes }) => <WeekTaskCard key={task.id} task={task} small={dayWidth / lanes < 90} availableHeight={Math.max(12, task.duration * pixelsPerMinute - 3)} unlocked={unlocked === task.id} dragging={drag?.task.id === task.id}
-                style={{ position: 'absolute', top: (task.start! - startMinute) * pixelsPerMinute + 2,
+              {dates.flatMap((date, dayIndex) => layoutDay(segments.filter(segment => segment.date === date).map(segment => ({ ...segment.task, date, start: segment.start, duration: segment.duration }))).map(({ task: piece, lane, lanes }) => {
+                const segment = segments.find(item => item.task.id === piece.id && item.date === date)!;
+                const task = segment.task;
+                return <WeekTaskCard key={`${task.id}-${date}`} task={task} displayStart={segment.start} continuation={segment.offset > 0} small={dayWidth / lanes < 90} availableHeight={Math.max(12, segment.duration * pixelsPerMinute - 3)} unlocked={unlocked === task.id} dragging={drag?.task.id === task.id}
+                style={{ position: 'absolute', top: (segment.start - startMinute) * pixelsPerMinute + 2,
                   left: GUTTER + dayIndex * dayWidth + lane * (dayWidth - 4) / lanes + 2,
-                  width: (dayWidth - 4) / lanes - 1, height: Math.max(12, task.duration * pixelsPerMinute - 3), zIndex: drag?.task.id === task.id ? 2 : 1 }}
-                onOpen={() => setSelected(task.id)} onUnlock={() => requestUnlock(task)} onBegin={(x, y) => beginDrag(task, x, y)} onMove={updatePreview} onDrop={drop} onCancel={cancelDrag} />))}
+                  width: (dayWidth - 4) / lanes - 1, height: Math.max(12, segment.duration * pixelsPerMinute - 3), zIndex: drag?.task.id === task.id ? 2 : 1 }}
+                onOpen={() => setSelected(task.id)} onUnlock={() => requestUnlock(task)} onBegin={(x, y) => beginDrag(task, x, y, segment)} onMove={updatePreview} onDrop={drop} onCancel={cancelDrag} />;
+              }))}
               {dates.includes(today) && now >= startMinute && now < endMinute && <View pointerEvents="none" style={{ position: 'absolute', top: (now - startMinute) * pixelsPerMinute, left: GUTTER + dates.indexOf(today) * dayWidth, width: dayWidth, height: 1, backgroundColor: '#B292D6', zIndex: 3 }}><View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: '#A383C8', marginTop: -2 }} /></View>}
-              {drag?.position && <View pointerEvents="none" testID="week-drag-preview" style={{ position: 'absolute', top: (drag.position.start - startMinute) * pixelsPerMinute,
-                left: GUTTER + dates.indexOf(drag.position.date) * dayWidth + 2, width: dayWidth - 5,
-                height: Math.max(18, drag.task.duration * pixelsPerMinute - 2), borderWidth: 2, borderStyle: 'dashed',
+              {drag?.position && calendarSegments({ ...drag.task, ...drag.position }).filter(segment => inWeek(segment.date)).map(segment => <View key={segment.date} pointerEvents="none" testID="week-drag-preview" style={{ position: 'absolute', top: (segment.start - startMinute) * pixelsPerMinute,
+                left: GUTTER + dates.indexOf(segment.date) * dayWidth + 2, width: dayWidth - 5,
+                height: Math.max(18, segment.duration * pixelsPerMinute - 2), borderWidth: 2, borderStyle: 'dashed',
                 borderColor: drag.error ? c.red : c.purple, backgroundColor: drag.error ? 'rgba(251,239,240,0.9)' : 'rgba(231,221,249,0.9)', borderRadius: 7, zIndex: 5, padding: 4 }}>
-                <Label numberOfLines={1} style={{ fontSize: 9, lineHeight: 14, fontWeight: '600', color: drag.error ? c.red : c.purpleDark }}>{clock(drag.position.start)}</Label><Label numberOfLines={3} style={{ fontSize: dayWidth < 90 ? 9 : 11, lineHeight: 14, color: drag.error ? c.red : c.purpleDark }}>{drag.task.title}</Label>
-              </View>}
+                <Label numberOfLines={1} style={{ fontSize: 9, lineHeight: 14, fontWeight: '600', color: drag.error ? c.red : c.purpleDark }}>{segment.offset ? '续 · ' : ''}{clock(segment.start)}</Label><Label numberOfLines={3} style={{ fontSize: dayWidth < 90 ? 9 : 11, lineHeight: 14, color: drag.error ? c.red : c.purpleDark }}>{drag.task.title}</Label>
+              </View>)}
             </View>
           </ScrollView>
         </View>

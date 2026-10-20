@@ -4,6 +4,7 @@ import { colors as c } from '../theme';
 import { usePlanning } from '../store';
 import { createPlan } from '../scheduler';
 import { clock } from '../utils';
+import { inPlanningDay } from '../time';
 import type { PlanMode, RescueReason } from '../types';
 import { Badge, Button, Chip, Dialog, FieldTitle, Icon, Label, type IconName } from './ui';
 
@@ -14,12 +15,12 @@ const modes: { key: PlanMode; title: string; desc: string; icon: IconName }[] = 
 ];
 export function RescueDialog({ visible, initialReason = 'interruption', onClose }: { visible: boolean; initialReason?: RescueReason; onClose: () => void }) {
   // Remount this dialog when opening so each preview starts from current data.
-  const { data, today, now, applyPlan } = usePlanning();
+  const { data, planningDate: today, planningNow: now, applyPlan } = usePlanning();
   const { width } = useWindowDimensions();
   const [reason, setReason] = useState<RescueReason>(initialReason);
   const [minutes, setMinutes] = useState(30);
   const [mode, setMode] = useState<PlanMode>('boundary');
-  const candidates = data.tasks.filter(task => task.date === today && !task.completed && !task.fixed);
+  const candidates = data.tasks.filter(task => inPlanningDay(task, today, data.settings) && !task.completed && !task.fixed);
   const [taskId, setTaskId] = useState(candidates[0]?.id);
   const plan = useMemo(() => createPlan(data.tasks, data.settings, { reason, minutes, mode, taskId, now, date: today }), [data, reason, minutes, mode, taskId, now, today]);
   return <Dialog visible={visible} wide title="计划变了，我们重新安排" subtitle="固定事项保持原时间。每一项取舍，都先让你看见。" onClose={onClose}

@@ -5,13 +5,14 @@ import { usePlanning } from '../store';
 import { colors as c } from '../theme';
 import { clock, dateKey, durationText } from '../utils';
 import { freeMinutes } from '../scheduler';
+import { inPlanningDay, relativeStart } from '../time';
 import type { RescueReason, Task } from '../types';
 import { Badge, Button, Card, Confirm, EmptyState, Icon, Label } from '../components/ui';
 import { TaskEditor } from '../components/TaskEditor';
 import { RescueDialog } from '../components/RescueDialog';
 
 export default function Today() {
-  const { data, today, now, mutateTasks, notify, reset } = usePlanning();
+  const { data, planningDate: today, planningNow: now, today: calendarToday, mutateTasks, notify, reset } = usePlanning();
   const { width } = useWindowDimensions();
   const desktop = width >= 1200;
   const compact = width < 600;
@@ -20,10 +21,11 @@ export default function Today() {
   const [rescue, setRescue] = useState<RescueReason | null>(null);
   const [confirmStart, setConfirmStart] = useState(false);
   const [showDone, setShowDone] = useState(false);
-  const tasks = data.tasks.filter(task => task.date === today);
+  const tasks = data.tasks.filter(task => inPlanningDay(task, today, data.settings));
+  const timelineTask = (task: Task): Task => ({ ...task, start: relativeStart(task, today) });
   const done = tasks.filter(task => task.completed);
   const pending = tasks.filter(task => !task.completed);
-  const planned = pending.filter(task => task.start !== null).sort((a, b) => a.start! - b.start!);
+  const planned = pending.filter(task => task.start !== null).sort((a, b) => relativeStart(a, today)! - relativeStart(b, today)!);
   const unscheduled = pending.filter(task => task.start === null);
   const capacity = freeMinutes(data.tasks, today, Math.max(now, data.settings.dayStart), data.settings.dayEnd);
   const flexible = pending.filter(task => !task.fixed);
@@ -32,7 +34,7 @@ export default function Today() {
   const space = capacity - demand - switching;
   const focus = pending.filter(task => task.important);
   const progress = tasks.length ? Math.round(done.length / tasks.length * 100) : 0;
-  const date = new Date(`${today}T12:00:00`);
+  const date = new Date(`${calendarToday}T12:00:00`);
   const weekday = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'][date.getDay()];
   const dayOver = now >= data.settings.dayEnd;
 
@@ -48,6 +50,8 @@ export default function Today() {
           <Label muted style={{ fontSize: 11, marginTop: 3 }}>{date.getMonth() + 1} 月 {date.getDate()} 日 · {weekday} <Label style={{ fontSize: 10, color: c.faint }}> / {date.getFullYear()}</Label></Label></View>
         <Button title="添加任务" icon="plus" onPress={() => setEditor({})} small={compact} />
       </View>
+
+      {today !== calendarToday && <Label muted style={{ fontSize: 11, marginBottom: 14 }}>跨夜延续 · 正在继续 {today.slice(5).replace('-', '/')} 的安排</Label>}
 
       <View style={[styles.hero, { padding: compact ? 23 : 30, minHeight: compact ? 118 : 171 }]}>
         <View style={{ zIndex: 1, maxWidth: compact ? '100%' : '73%' }}>{!compact && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 13 }}><Icon name="sun" size={15} color="#9B86CE" /><Label style={{ fontSize: 10, color: '#9B86CE', letterSpacing: 2 }}>A LITTLE ROOM FOR LIFE</Label></View>}
@@ -80,13 +84,13 @@ export default function Today() {
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}><View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}><Label style={{ fontSize: 16, fontWeight: '600' }}>今日时间轴</Label><Label muted style={{ fontSize: 10 }}>{pending.length} 项待完成</Label></View><View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}><View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: c.purple }} /><Label style={{ fontSize: 10, color: c.purple }}>{data.demo ? '模拟' : '现在'} {clock(now)}</Label></View></View>
 
           {!compact && done.length > 0 && <><Pressable accessibilityRole="button" accessibilityLabel={showDone ? '收起已完成任务' : '展开已完成任务'} onPress={() => setShowDone(!showDone)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingLeft: 62, marginBottom: 12 }}><Icon name="check-circle" size={14} color={c.green} /><Label muted style={{ fontSize: 11 }}>已完成 {done.length} 件事，做得很好</Label><Icon name={showDone ? 'chevron-up' : 'chevron-down'} size={12} /></Pressable>
-            {showDone && done.map(task => <TimelineTask key={task.id} task={task} now={now} onEdit={() => setEditor({ task })} onToggle={() => toggleTask(task)} compact={compact} />)}</>}
+            {showDone && done.map(task => <TimelineTask key={task.id} task={timelineTask(task)} now={now} onEdit={() => setEditor({ task })} onToggle={() => toggleTask(task)} compact={compact} />)}</>}
 
           {planned.length === 0 && unscheduled.length === 0 && <Card style={{ padding: 12 }}><EmptyState title={done.length ? '今天的安排，都完成了' : '今天还有很多可能'} description={done.length ? '留一点时间给自己。明天的事，可以明天再说。' : '先放进一件重要的小事，其余的慢慢来。'} action="添加第一件事" onPress={() => setEditor({})} /></Card>}
           {planned.map((task, index) => {
             const next = planned[index + 1];
-            const gap = next ? next.start! - task.start! - task.duration : 0;
-            return <View key={task.id}><TimelineTask task={task} now={now} onEdit={() => setEditor({ task })} onToggle={() => toggleTask(task)} compact={compact} />
+            const gap = next ? relativeStart(next, today)! - relativeStart(task, today)! - task.duration : 0;
+            return <View key={task.id}><TimelineTask task={timelineTask(task)} now={now} onEdit={() => setEditor({ task })} onToggle={() => toggleTask(task)} compact={compact} />
               {gap >= 15 && <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', paddingLeft: compact ? 58 : 75, paddingVertical: 7, marginBottom: 8 }}><Icon name="coffee" size={12} color="#A5A0B1" /><Label style={{ color: '#A5A0B1', fontSize: 10 }}>{gap} 分钟留白 · 伸个懒腰，喘口气</Label></View>}
             </View>;
           })}
