@@ -5,28 +5,14 @@ import type { Task } from '../types';
 import { clock } from '../utils';
 import { colors as c } from '../theme';
 import { Badge, Button, Icon, Label } from './ui';
-import { TimeField } from './TimeField';
+import { TimeWheelPicker } from './TimeField';
+export { WeekGuideLesson } from './GuideWeekLesson';
 
 export function TimeGuideLesson() {
-  const [time, setTime] = useState('14:30');
+  const [time, setTime] = useState(870);
   return <View style={{ marginTop: 20, padding: 16, backgroundColor: c.bg, borderRadius: 13 }}>
     <View style={{ alignSelf: 'flex-start', marginBottom: 12 }}><Badge title="教学演示 · 不改变日程" tone="neutral" /></View>
-    <TimeField label="演示开始时间" value={time} onChangeText={setTime} />
-  </View>;
-}
-
-export function WeekGuideLesson() {
-  const [moved, setMoved] = useState(false);
-  return <View style={{ marginTop: 20, padding: 16, backgroundColor: c.bg, borderRadius: 13 }}>
-    <View style={{ alignSelf: 'flex-start', marginBottom: 12 }}><Badge title="教学演示 · 不改变日程" tone="neutral" /></View>
-    <View style={{ flexDirection: 'row', gap: 10 }}>{['今天', '明天'].map((day, index) => <View key={day} style={{ flex: 1 }}>
-      <Label muted style={{ textAlign: 'center', fontSize: 11, marginBottom: 7 }}>{day}</Label>
-      <View style={{ minHeight: 87, borderWidth: 1, borderColor: c.border, borderRadius: 10, padding: 8, backgroundColor: '#fff' }}>
-        {index === Number(moved) && <View style={{ borderRadius: 7, padding: 9, backgroundColor: c.lavender }}><Label style={{ fontSize: 10, color: c.purple }}>15:00–15:30</Label><Label style={{ fontSize: 12 }}>整理阅读笔记</Label></View>}
-      </View>
-    </View>)}</View>
-    <Button title={moved ? '再试一次：移回今天' : '试一试：移到明天'} icon="move" variant="secondary" small onPress={() => setMoved(value => !value)} style={{ alignSelf: 'flex-start', marginTop: 12 }} />
-    {moved && <Label accessibilityLiveRegion="polite" muted style={{ fontSize: 11, marginTop: 8 }}>已移到明天。真实周览中可长按卡片拖动。</Label>}
+    <TimeWheelPicker label="演示开始时间" value={time} onChange={setTime} />
   </View>;
 }
 

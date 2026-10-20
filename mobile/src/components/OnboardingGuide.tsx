@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View } from 'react-native';
 import { useGuide } from '../guideStore';
 import { GUIDE_STEPS } from '../guide';
@@ -11,6 +11,7 @@ import { RescueGuideLesson, TimeGuideLesson, WeekGuideLesson } from './GuideLess
 export function OnboardingGuide({ blocked = false }: { blocked?: boolean }) {
   const guide = useGuide();
   const router = useRouter();
+  const [lessonDragging, setLessonDragging] = useState(false);
   function finish() {
     const firstCompletion = guide.progress.completedRevision === 0;
     guide.finish();
@@ -18,7 +19,7 @@ export function OnboardingGuide({ blocked = false }: { blocked?: boolean }) {
   }
   const index = Math.max(0, GUIDE_STEPS.findIndex(step => step.id === guide.progress.stepId));
   const step = GUIDE_STEPS[index], visible = guide.ready && guide.visible && !blocked;
-  return <Dialog visible={visible} title={step.title} subtitle={step.summary} onClose={guide.dismiss}
+  return <Dialog visible={visible} title={step.title} subtitle={step.summary} onClose={guide.dismiss} scrollEnabled={!lessonDragging}
     footer={<View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8 }}>
       <Button title="稍后再看" small variant="ghost" onPress={guide.dismiss} />
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
@@ -35,7 +36,7 @@ export function OnboardingGuide({ blocked = false }: { blocked?: boolean }) {
     </View>)}</View>
     {step.id === 'welcome' && <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 22 }}><Badge title="记下来" tone="purple" /><Badge title="安排好" tone="green" /><Badge title="随时调整" tone="orange" /></View>}
     {visible && step.id === 'tasks' && <TimeGuideLesson />}
-    {visible && step.id === 'week' && <WeekGuideLesson />}
+    {visible && step.id === 'week' && <WeekGuideLesson onDraggingChange={setLessonDragging} />}
     {visible && step.id === 'rescue' && <RescueGuideLesson />}
     {visible && step.id === 'permissions' && <GuidePermissions />}
     {guide.saveError && <View style={{ marginTop: 16, padding: 12, backgroundColor: c.orangeBg, borderRadius: 9 }}><Label accessibilityRole="alert" style={{ fontSize: 11, color: c.orange }}>教程进度暂未保存，可以继续使用。</Label><Button title="重试保存进度" variant="ghost" small onPress={guide.retry} /></View>}

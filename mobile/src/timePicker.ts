@@ -28,3 +28,12 @@ export function pickerMinutes(hour: number, min: number, max: number): number[] 
 export function changePickerHour(value: number, hour: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, hour * 60 + value % 60));
 }
+
+export function readWheelNumber(text: string, values: number[], selected: number, clockHour = false): number | null {
+  const normalized = text.trim().replace(/[０-９]/g, digit => String(digit.charCodeAt(0) - 65296));
+  if (!/^\d{1,2}$/.test(normalized)) return null;
+  const number = Number(normalized);
+  if (!clockHour) return values.includes(number) ? number : null;
+  const candidates = values.filter(value => value % 24 === number);
+  return candidates.find(value => Math.floor(value / 24) === Math.floor(selected / 24)) ?? candidates[0] ?? null;
+}

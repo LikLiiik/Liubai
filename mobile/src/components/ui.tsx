@@ -46,8 +46,8 @@ export function Card({ children, style }: { children: React.ReactNode; style?: S
 export function FieldTitle({ children }: { children: React.ReactNode }) {
   return <Label style={{ fontSize: 12, fontWeight: '600', marginBottom: 9, marginTop: 20 }}>{children}</Label>;
 }
-export function Dialog({ visible, title, subtitle, onClose, children, wide = false, footer }: {
-  visible: boolean; title: string; subtitle?: string; onClose: () => void; children: React.ReactNode; wide?: boolean; footer?: React.ReactNode;
+export function Dialog({ visible, title, subtitle, onClose, children, wide = false, footer, scrollEnabled = true }: {
+  visible: boolean; title: string; subtitle?: string; onClose: () => void; children: React.ReactNode; wide?: boolean; footer?: React.ReactNode; scrollEnabled?: boolean;
 }) {
   return <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
     <View style={styles.overlay}>
@@ -57,7 +57,7 @@ export function Dialog({ visible, title, subtitle, onClose, children, wide = fal
           <View style={{ flex: 1 }}><Label style={{ fontSize: 22, fontWeight: '700', lineHeight: 30 }}>{title}</Label>{subtitle && <Label muted style={{ fontSize: 12, marginTop: 7 }}>{subtitle}</Label>}</View>
           <Pressable accessibilityRole="button" accessibilityLabel="关闭" onPress={onClose} style={{ padding: 6, marginLeft: 10 }}><Icon name="x" size={21} /></Pressable>
         </View>
-        <ScrollView keyboardShouldPersistTaps="handled" style={{ flexShrink: 1 }} contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 24 }}>{children}</ScrollView>
+        <ScrollView scrollEnabled={scrollEnabled} keyboardShouldPersistTaps="handled" style={{ flexShrink: 1 }} contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 24 }}>{children}</ScrollView>
         {footer && <View style={{ padding: 20, borderTopWidth: 1, borderTopColor: c.border }}>{footer}</View>}
       </View>
     </View>

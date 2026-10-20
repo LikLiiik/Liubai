@@ -1,11 +1,11 @@
 // Keep tutorial content, revision and stable step IDs together when adding product features.
-export const GUIDE_REVISION = 2;
+export const GUIDE_REVISION = 3;
 export const GUIDE_STEPS = [
   { id: 'welcome', introduced: 2, icon: 'feather', title: '给计划留一点余地', summary: '用几步认识留白，按自己的节奏开始。',
     tips: ['教程中的示例可以放心尝试，不会写入你的日程。', '了解核心操作后，直接开始记录自己的安排。', '教程可随时退出，在「我的 → 新手指引」继续或重看。'] },
-  { id: 'tasks', introduced: 2, icon: 'plus-circle', title: '先把想做的事记下来', summary: '在「今天」或「周览」点 ＋，添加一件事。',
-    tips: ['填写名称和预计时长，需要时补充优先级、重点和截止日期。', '时间和时长可直接填写，或点时钟图标分别滑动「时」「分」；填写后会自动补全。', '还没确定时间？先放进「探索 → 收集箱」。会议、预约可设固定时间；普通任务由自动排程寻找空位。'] },
-  { id: 'week', introduced: 1, icon: 'calendar', title: '把一周摆在眼前', summary: '周览按课程表展示一周，滑动查看 00:00–24:00。',
+  { id: 'tasks', introduced: 3, icon: 'plus-circle', title: '先把想做的事记下来', summary: '在「今天」或「周览」点 ＋，添加一件事。',
+    tips: ['填写名称和预计时长，需要时补充优先级、重点和截止日期。', '时间可以分别填写小时和分钟，也可上下滑动对应数字，无需输入冒号。', '还没确定时间？先放进「探索 → 收集箱」。会议、预约可设固定时间；普通任务由自动排程寻找空位。'] },
+  { id: 'week', introduced: 3, icon: 'calendar', title: '把一周摆在眼前', summary: '周览按课程表展示一周，滑动查看 00:00–24:00。',
     tips: ['手机长按卡片拖动，可调整时间或移到另一天；点击卡片也能精确填写时间。', '固定事项先确认解锁，只允许移动一次。', '手动重叠或放到非偏好时段时先确认；自动排程仍避开占用时间。'] },
   { id: 'rescue', introduced: 1, icon: 'wind', title: '计划变了，也能接着来', summary: '在「今天」使用一键救场，安排好接下来。',
     tips: ['临时有事、任务超时、精力不足，都可以选择对应情况。', '比较保截止时间、保结束时间、保今日重点，查看哪些任务会移动或延期。', '确认采用后才改变日程；固定和已完成事项保持原样。'] },

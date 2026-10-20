@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { changePickerHour, durationTime, formatTimeInput, parseDuration, pickerHours, pickerMinutes, readTimeInput } from '../src/timePicker.ts';
+import { changePickerHour, durationTime, formatTimeInput, parseDuration, pickerHours, pickerMinutes, readTimeInput, readWheelNumber } from '../src/timePicker.ts';
 import { validSettings } from '../src/time.ts';
 
 test('duration entry accepts minutes, hours/minutes and explicit units without treating a duration as a clock', () => {
@@ -39,4 +39,14 @@ test('free-period thresholds persist arbitrary whole minutes within the existing
   const settings = { dayStart: 540, dayEnd: 1320, buffer: 10 };
   assert.equal(validSettings({ ...settings, inboxReminderMinMinutes: 47 }), true);
   for (const value of [29, 121, 60.5, NaN]) assert.equal(validSettings({ ...settings, inboxReminderMinMinutes: value }), false);
+});
+
+test('separate hour and minute inputs accept unpadded digits and retain next-day meaning within valid ranges', () => {
+  assert.equal(readWheelNumber('7', pickerHours(0, 1439), 14), 7);
+  assert.equal(readWheelNumber('０５', pickerMinutes(14, 0, 1439), 30), 5);
+  assert.equal(readWheelNumber('2', pickerHours(541, 1800), 18, true), 26);
+  assert.equal(readWheelNumber('2', pickerHours(1, 1800), 26, true), 26);
+  assert.equal(readWheelNumber('2', pickerHours(1, 1800), 10, true), 2);
+  assert.equal(readWheelNumber('1', pickerMinutes(30, 541, 1800), 0), null);
+  for (const invalid of ['', '2:30', '2.5', '-1', '60']) assert.equal(readWheelNumber(invalid, pickerMinutes(14, 0, 1439), 30), null);
 });

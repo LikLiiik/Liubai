@@ -49,6 +49,13 @@ test('a new guide revision starts with newly introduced content instead of repla
   assert.equal(shouldShowGuide(finished), false, 'ordinary app version changes do not change the tutorial revision');
 });
 
+test('users who completed the published v2 guide see the corrected hands-on lessons without losing completion history', () => {
+  const previous = { ...freshGuideProgress(), revision: 2, completedRevision: 2, deferredRevision: 2 };
+  assert.equal(shouldShowGuide(previous), true);
+  assert.equal(guideStartStep(previous), 'tasks');
+  assert.equal(visitGuideStep(previous, 'week').completedRevision, 2);
+});
+
 test('missing or damaged progress recovers without crashing and removed step IDs retain completion history', () => {
   for (const raw of ['not json', 'null', '[]', '{}', JSON.stringify({ ...freshGuideProgress(), completedRevision: -1 })]) {
     assert.deepEqual(parseGuideProgress(raw), freshGuideProgress());
