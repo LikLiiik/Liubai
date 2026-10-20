@@ -15,6 +15,8 @@ export const UNDERGRADUATE_PERIODS = [
 const text = (value: string) => value.replace(/<br\s*\/?\s*>/gi, '\n').replace(/<\/(?:p|div)>/gi, '\n').replace(/<[^>]*>/g, '')
   .replace(/&nbsp;|&#160;/gi, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
   .replace(/&#(\d+);/g, (_, number) => String.fromCodePoint(Math.min(65535, Number(number))))
+  .replace(/&#x([\da-f]+);/gi, (_, number) => String.fromCodePoint(Math.min(65535, parseInt(number, 16))))
+  .replace(/[０-９]/g, number => String.fromCharCode(number.charCodeAt(0) - 0xfee0))
   .replace(/\r/g, '').replace(/[［【]/g, '[').replace(/[］】]/g, ']');
 const hash = (value: string) => {
   let first = 2166136261, second = 2246822507;
@@ -26,7 +28,7 @@ const hash = (value: string) => {
 };
 
 export function parseNumbers(value: string, maximum: number): number[] {
-  let source = value.replace(/[，、；;]/g, ',').replace(/[–—~～至]/g, '-').replace(/\s+/g, '');
+  let source = value.replace(/[，、；;]/g, ',').replace(/[－–—~～至]/g, '-').replace(/\s+/g, '');
   const odd = /单/.test(source), even = /双/.test(source);
   if (odd && even) throw new Error('单双周标记不明确');
   source = source.replace(/[第周节单双()（）]/g, '');
@@ -48,6 +50,30 @@ export function validSemester(semester: Semester): boolean {
     && Number(semester.monday.slice(0, 4)) <= Number(match[2]) && new Date(`${semester.monday}T12:00:00`).getDay() === 1;
 }
 
+// Read the entire field before parsing numbers: accepting a numeric substring can
+// silently turn an unsupported expression into the wrong set of lesson dates.
+function scheduleField(content: string, unit: '周' | '节'): string | undefined {
+  const label = unit === '周' ? '周次' : '节次';
+  const fields: string[] = [];
+  for (const match of content.matchAll(/\[([^\]\n]+)\]([^\S\n]*[周节])?([^\S\n]*[（(]\s*[单双](?:周)?\s*[)）])?/g)) {
+    const prefix = new RegExp(`^${label}\\s*[:：]\\s*`);
+    const labelled = prefix.test(match[1].trim());
+    const inner = match[1].trim().replace(prefix, '');
+    const suffix = match[2]?.trim();
+    if (/^(?:第\s*)?\d/.test(inner) && (labelled || inner.includes(unit) || suffix === unit)) fields.push(inner + (suffix ?? '') + (match[3] ?? ''));
+  }
+  if (!fields.length) {
+    for (const line of content.split('\n').map(line => line.trim())) {
+      const labelled = new RegExp(`^${label}\\s*[:：]\\s*(.+)$`).exec(line);
+      if (labelled) fields.push(labelled[1]);
+      else if (/^(?:第\s*)?\d/.test(line) && line.includes(unit) && !/[\[\]]/.test(line)) fields.push(line);
+    }
+  }
+  const unique = [...new Set(fields)];
+  if (unique.length > 1) throw new Error(`存在多组${label}，需核对对应关系`);
+  return unique[0];
+}
+
 export function parseHitszCourses(payload: unknown): CourseDraft {
   const object = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {};
   const rows = Array.isArray(payload) ? payload : Array.isArray(object.content) ? object.content : Array.isArray(object.data) ? object.data : null;
@@ -56,18 +82,26 @@ export function parseHitszCourses(payload: unknown): CourseDraft {
   const seen = new Map<string, string>();
   let ignored = 0;
   rows.forEach((row, index) => {
+    let content = '', title = '';
     try {
       if (!row || typeof row !== 'object' || typeof row.SKSJ !== 'string' || row.SKSJ.length > 10000) throw new Error('缺少课程信息');
-      const content = text(row.SKSJ).trim();
-      if (/^备注[:：]/.test(content)) { ignored++; return; }
-      if (/考试/.test(content) && !/\[[^\]]*周/.test(content)) throw new Error('考试安排暂不自动导入');
-      const title = content.split('\n')[0].trim().split('[')[0].trim();
+      content = text(row.SKSJ).trim();
+      title = content.split('\n')[0].trim().split('[')[0].trim();
       const weekday = Number(/xq([1-7])(?:\D|$)/i.exec(String(row.KEY ?? ''))?.[1]);
-      const weeksText = /\[([^\]\n]*周[^\]\n]*)\]/.exec(content)?.[1];
-      const periodsText = /(?:\[|第)([\d\s,，、\-–—~～至]+)节/.exec(content)?.[1];
-      if (!title || title.length > 100 || !weekday || !weeksText || !periodsText) throw new Error('课程名称、星期、周次或节次不完整');
-      const weeks = parseNumbers(weeksText, 30), periods = parseNumbers(periodsText, 12);
-      const extras = [...content.matchAll(/\[([^\]]+)\]/g)].map(match => match[1].trim()).filter(value => !/[周节]/.test(value));
+      const weeksText = scheduleField(content, '周'), periodsText = scheduleField(content, '节');
+      if (/考试/.test(content) && !weeksText) throw new Error('考试安排暂不自动导入');
+      // Remarks (including MOOC entries) can follow the course name. Do not skip
+      // a scheduled course merely because it also has a remark.
+      if (/(?:^|\n)\s*备注\s*[:：]/.test(content) && !weeksText && !periodsText) { ignored++; return; }
+      const missing = [!title && '课程名称缺失', title.length > 100 && '课程名称过长', !weekday && '星期未识别', !weeksText && '周次未识别', !periodsText && '节次未识别'].filter(Boolean);
+      if (missing.length) throw new Error(missing.join('、'));
+      const readNumbers = (value: string, maximum: number, label: string) => {
+        try { return parseNumbers(value, maximum); }
+        catch (error) { throw new Error(`${label}「${value}」：${error instanceof Error ? error.message : '无法识别'}`); }
+      };
+      const weeks = readNumbers(weeksText!, 30, '周次'), periods = readNumbers(periodsText!, 12, '节次');
+      const extras = [...content.matchAll(/\[([^\]]+)\]([^\S\n]*[周节])?/g)].filter(match => !match[2])
+        .map(match => match[1].trim()).filter(value => !/[周节]/.test(value));
       const teacher = extras.length > 1 ? extras[0] : '';
       const room = extras.length > 1 ? extras.slice(1).join(' · ') : extras[0] ?? '';
       const key = hash(JSON.stringify([title, teacher, weekday, weeks, periods]));
@@ -77,7 +111,11 @@ export function parseHitszCourses(payload: unknown): CourseDraft {
       }
       seen.set(key, room);
       courses.push({ key, title, weekday, weeks, periods, teacher, room, offset: 0 });
-    } catch (error) { issues.push(`第 ${index + 1} 条：${error instanceof Error ? error.message : '无法解析'}`); }
+    } catch (error) {
+      const name = title ? `「${title.slice(0, 60)}」` : '';
+      const detail = content ? `\n课表原文：${content.replace(/\s+/g, ' ').slice(0, 240)}` : '';
+      issues.push(`第 ${index + 1} 条${name}：${error instanceof Error ? error.message : '无法解析'}${detail}`);
+    }
   });
   return { courses, issues, ignored };
 }

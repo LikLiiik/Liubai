@@ -29,6 +29,65 @@ test('school rows parse text or HTML line breaks and report unsupported rows ins
   assert.equal(parseHitszCourses([SAMPLE_ROWS[0], { ...SAMPLE_ROWS[0], SKSJ: SAMPLE_ROWS[0].SKSJ.replace('T2-203', 'T2-404') }]).issues.length, 1);
 });
 
+test('remarks after a course title are ignored only when no scheduled week or period is present', () => {
+  const result = parseHitszCourses([
+    { KEY: 'bz', SKSJ: '线上通识课<br/>备注：慕课，自主学习' },
+    { ...SAMPLE_ROWS[0], SKSJ: `${SAMPLE_ROWS[0].SKSJ}\n备注：请按时上课` },
+    { KEY: 'xq3', SKSJ: '时间待确认\n[1-4周]\n备注：节次待定' },
+  ]);
+  assert.equal(result.ignored, 1);
+  assert.equal(result.courses.length, 1);
+  assert.equal(result.issues.length, 1);
+  assert.match(result.issues[0], /时间待确认.*节次未识别/);
+});
+
+test('complete bracketed or separate schedule fields accept outside units, spacing and full-width digits', () => {
+  const variants = [
+    '格式课程\n[1-4]周\n[1-2]节\n[老师][教室]',
+    '格式课程\n【１－４周】\n【第１－２节】\n[老师][教室]',
+    '格式课程\n周次：1-4\n节次：1-2\n[老师][教室]',
+    '格式课程\n[周次：1-4]\n[节次：1-2]\n[老师][教室]',
+    '格式课程\n1 - 4 周\n第 1 - 2 节\n[老师][教室]',
+    '<div>格式课程</div><div>[1&#x2d;4周]</div><div>[第1-2节]</div><div>[老师][教室]</div>',
+  ];
+  for (const SKSJ of variants) {
+    const result = parseHitszCourses([{ KEY: 'xq2_jc1', SKSJ }]);
+    assert.deepEqual(result.issues, [], SKSJ);
+    assert.deepEqual(result.courses[0].weeks, [1, 2, 3, 4]);
+    assert.deepEqual(result.courses[0].periods, [1, 2]);
+    assert.equal(result.courses[0].teacher, '老师');
+    assert.equal(result.courses[0].room, '教室');
+    assert.equal(expandCourses(result.courses, semester).length, 4);
+  }
+});
+
+test('incomplete and ambiguous fields identify the course and failing field without inventing times', () => {
+  const rows = [
+    { KEY: 'bad-key', SKSJ: '星期未知\n[1-4周]\n[1-2节]' },
+    { KEY: 'xq1', SKSJ: '周次未知\n[1-2节]' },
+    { KEY: 'xq1', SKSJ: '坏周次\n[1-4,待定周]\n[1-2节]' },
+    { KEY: 'xq1', SKSJ: '多组时段\n[1-4周][1-2节]\n[5-8周][3-4节]' },
+    { KEY: 'xq1', SKSJ: '不合法节次\n[1-4周]\n[1-99节]' },
+  ];
+  const result = parseHitszCourses(rows);
+  assert.equal(result.courses.length, 0);
+  assert.equal(result.issues.length, rows.length);
+  for (const [index, message] of ['星期未识别', '周次未识别', '周次「1-4,待定周」', '多组周次', '节次「1-99节」'].entries()) {
+    assert.ok(result.issues[index].includes(message), result.issues[index]);
+    assert.ok(result.issues[index].includes(rows[index].SKSJ.split('\n')[0]));
+    assert.match(result.issues[index], /课表原文：/);
+  }
+});
+
+test('odd/even markers outside the week brackets retain their meaning', () => {
+  for (const weeks of ['[1-4周]（单）', '[1-4]周(单周)']) {
+    const result = parseHitszCourses([{ KEY: 'xq1', SKSJ: `单双周课程\n${weeks}\n[1-2]节\n[老师][教室]` }]);
+    assert.deepEqual(result.issues, []);
+    assert.deepEqual(result.courses[0].weeks, [1, 3]);
+    assert.deepEqual(expandCourses(result.courses, semester).map(task => task.date), ['2026-08-31', '2026-09-14']);
+  }
+});
+
 test('the semester anchor must be an actual Monday, including year transitions', () => {
   assert.equal(validSemester(semester), true);
   assert.equal(validSemester({ ...semester, monday: '2026-09-01' }), false);
