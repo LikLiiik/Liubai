@@ -40,7 +40,7 @@ function TaskEditorForm({ visible, task, target = 'today', initialDate, onClose 
     // Editing the title or notes must preserve a position chosen in the week grid.
     const preservedStart = !fixed && date && task?.date === date ? task.start : null;
     const start = fixed && date ? parseTime(time) : preservedStart;
-    if (fixed && date && start === null) { setError('请填写有效的开始时间，例如 14、1430、14:30。'); return; }
+    if (fixed && date && start === null) { setError('请输入有效的开始时间。'); return; }
     const timingChanged = !task || task.date !== date || task.start !== start || task.duration !== minutes;
     if ((timingChanged || task?.deadline !== (deadline || null)) && date && start !== null && !finishesByDeadline(date, start, minutes, deadline || null)) { setError('任务结束时间超过截止日期，请调整时间或时长。'); return; }
     if (timingChanged && date && start !== null && data.tasks.some(item => item.id !== task?.id && overlaps({ ...item, date, start, duration: minutes }, item))) {

@@ -22,7 +22,7 @@ export default function Me() {
     const dayStart = parseTime(start.trim() || clock(data.settings.dayStart));
     const dayEnd = dayStart === null ? null : parsePreferenceEnd(end.trim() || preferenceTime(data.settings.dayEnd), dayStart);
     const minutes = Number(buffer);
-    if (dayStart === null || dayEnd === null) { setError('请填写能识别的时间，例如 9、930、9点半；结束最晚可到次日凌晨6点。'); return; }
+    if (dayStart === null || dayEnd === null) { setError('请输入有效时间，结束最晚可到次日凌晨 6 点。'); return; }
     if (!Number.isInteger(minutes) || minutes < 0 || minutes > 60) { setError('切换缓冲请输入 0–60 之间的整数分钟。'); return; }
     setStart(clock(dayStart)); setEnd(preferenceTime(dayEnd));
     updateSettings({ ...data.settings, dayStart, dayEnd, buffer: minutes }); setError(''); notify('节奏已保存，后续排程会参考这些偏好。');
@@ -62,8 +62,8 @@ export default function Me() {
   return <><ScrollView contentContainerStyle={{ padding: width < 600 ? 20 : 38, paddingBottom: 45 }}><View style={{ maxWidth: 900, width: '100%', alignSelf: 'center' }}>
     <Label style={{ fontSize: 28, lineHeight: 38, fontWeight: '700' }}>我的</Label><Label muted style={{ fontSize: 11, marginTop: 6, marginBottom: 27 }}>你的节奏、提醒和数据，都在这里。</Label>
     <Card style={{ marginBottom: 20 }}><View style={{ flexDirection: 'row', gap: 9, alignItems: 'center' }}><Icon name="sun" size={18} color={c.purple} /><Label style={{ fontWeight: '600', fontSize: 14 }}>日程偏好</Label></View>
-      <View style={{ flexDirection: 'row', gap: 16 }}><View style={{ flex: 1 }}><FieldTitle>从几点开始</FieldTitle><TextInput accessibilityLabel="一天开始时间" value={start} onChangeText={setStart} onBlur={() => completeTime('start')} onSubmitEditing={() => completeTime('start')} selectTextOnFocus autoCorrect={false} placeholder="如 9、930" style={input} /></View><View style={{ flex: 1 }}><FieldTitle>希望几点结束</FieldTitle><TextInput accessibilityLabel="一天结束时间" value={end} onChangeText={setEnd} onBlur={() => completeTime('end')} onSubmitEditing={() => completeTime('end')} selectTextOnFocus autoCorrect={false} placeholder="如 23、凌晨2点" style={input} /></View></View>
-      <Label muted style={{ fontSize: 11, marginTop: 10 }}>支持 9、930、9点半等写法，离开输入框后自动补全。结束最晚可到次日凌晨 6 点。</Label>
+      <View style={{ flexDirection: 'row', gap: 16 }}><View style={{ flex: 1 }}><FieldTitle>从几点开始</FieldTitle><TextInput accessibilityLabel="一天开始时间" value={start} onChangeText={setStart} onBlur={() => completeTime('start')} onSubmitEditing={() => completeTime('start')} selectTextOnFocus autoCorrect={false} placeholder="开始时间" style={input} /></View><View style={{ flex: 1 }}><FieldTitle>希望几点结束</FieldTitle><TextInput accessibilityLabel="一天结束时间" value={end} onChangeText={setEnd} onBlur={() => completeTime('end')} onSubmitEditing={() => completeTime('end')} selectTextOnFocus autoCorrect={false} placeholder="结束时间" style={input} /></View></View>
+      <Label muted style={{ fontSize: 11, marginTop: 10 }}>结束最晚可到次日凌晨 6 点。</Label>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7, paddingTop: 12 }}>{['18:00', '22:00', '次日 02:00', '次日 06:00'].map(value => <Chip key={value} title={value} selected={end === value} onPress={() => { setEnd(value); setError(''); }} />)}</ScrollView>
       <FieldTitle>灵活任务之间，留多少分钟切换</FieldTitle><View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><TextInput accessibilityLabel="任务切换缓冲" value={buffer} onChangeText={setBuffer} keyboardType="number-pad" style={[input, { width: 100 }]} /><Label muted style={{ fontSize: 12 }}>分钟</Label></View>
       <Label muted style={{ fontSize: 11, marginTop: 15 }}>只影响后续安排，不会自动移动已有日程。选择「保截止时间」时，可在预览中接受最多延后 60 分钟。</Label>
