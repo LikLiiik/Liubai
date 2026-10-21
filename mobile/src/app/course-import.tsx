@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { usePlanning } from '../store';
 import { colors as c } from '../theme';
 import { clock } from '../utils';
-import { expandCourses, parseHitszCourses, previewCourseImport, UNDERGRADUATE_PERIODS, validSemester, validSemesterTerm, type CourseDraft } from '../courses';
+import { parseHitszCourses, prepareCourseImport, UNDERGRADUATE_PERIODS, validSemesterTerm, type CourseDraft } from '../courses';
 import type { SchoolRead, SchoolRequest } from '../hitsz';
 import { SchoolLogin } from '../components/SchoolLogin';
 import { SemesterSelector } from '../components/SemesterSelector';
@@ -24,38 +24,29 @@ export default function CourseImport() {
   const [draft, setDraft] = useState<CourseDraft | null>(null);
   const [excluded, setExcluded] = useState<string[]>([]);
   const [mode, setMode] = useState<'merge' | 'sync'>('merge');
-  const [confirmed, setConfirmed] = useState(false);
   const [showTimes, setShowTimes] = useState(false);
   const [confirmImport, setConfirmImport] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState('');
   const [importedCounts, setImportedCounts] = useState('');
   const [importedDate, setImportedDate] = useState(today);
-  const semester = { year, term, monday };
   const semesterKey = `${year}/${term}`;
-  const selected = draft?.courses.filter(course => !excluded.includes(course.key)) ?? [];
-  const preview = useMemo(() => {
-    const chosen = draft?.courses.filter(course => !excluded.includes(course.key)) ?? [];
-    if (!draft || !validSemesterTerm({ year, term }) || chosen.some(course => !course.pending) && !validSemester({ year, term, monday }) || draft.issues.length) return null;
-    try {
-      return previewCourseImport(data.tasks,
-        expandCourses(draft.courses.filter(course => !excluded.includes(course.key)), { year, term, monday }),
-        `${year}/${term}`, mode, today);
-    } catch { return null; }
-  }, [draft, year, term, monday, data.tasks, excluded, mode, today]);
-  const canImport = !!preview?.valid && !!preview.changes.length && confirmed && !!selected.length;
+  const { selected, preview, blockedReason } = useMemo(() => prepareCourseImport(data.tasks, draft, { year, term, monday }, excluded, mode, today),
+    [draft, year, term, monday, data.tasks, excluded, mode, today]);
+  const canImport = !blockedReason && !!preview;
+  const needsDates = selected.some(course => !course.pending);
 
   function selectSemester(next: SchoolRequest) {
     if (next.year === year && next.term === term) return;
     setYear(next.year); setTerm(next.term); setMonday(''); setDraft(null); setExcluded([]);
-    setConfirmed(false); setConfirmImport(false); setError(''); setMode('merge');
+    setConfirmImport(false); setError(''); setMode('merge');
   }
   function receive(value: SchoolRead) {
     try {
       if (value.year !== year || value.term !== term) throw new Error('读取结果与所选学年学期不一致，请重新读取。');
       const next = parseHitszCourses(value.rows);
       setDraft(next); setYear(value.year); setTerm(value.term); setMonday(value.monday);
-      setMode('merge'); setConfirmed(false); setExcluded([]); setDone(false); setError(''); setLogin(false);
+      setMode('merge'); setExcluded([]); setDone(false); setError(''); setLogin(false);
     } catch (error) { setError(error instanceof Error ? error.message : '读取失败，请重试。'); }
   }
   function importNow() {
@@ -78,7 +69,7 @@ export default function CourseImport() {
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 22 }}>
           {selected.some(course => !course.pending) && <Button title="查看周览" icon="calendar" onPress={() => router.navigate({ pathname: '/week', params: { date: importedDate } })} />}
           {selected.some(course => course.pending) && <Button title="查看收集箱" icon="inbox" onPress={() => router.navigate('/inbox')} />}
-          <Button title="查看回顾" variant="secondary" onPress={() => router.navigate('/review')} /><Button title="再次导入" variant="ghost" onPress={() => { setDone(false); setDraft(null); setError(''); setConfirmed(false); }} /></View>
+          <Button title="查看回顾" variant="secondary" onPress={() => router.navigate('/review')} /><Button title="再次导入" variant="ghost" onPress={() => { setDone(false); setDraft(null); setError(''); }} /></View>
       </Card> : <>
         <Card style={{ marginBottom: 18 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}><Icon name="book-open" color={c.purple} /><Label style={{ fontWeight: '600', flexShrink: 1 }}>哈尔滨工业大学（深圳）</Label><Badge title="本科生" tone="neutral" /></View>
@@ -91,10 +82,8 @@ export default function CourseImport() {
             </View>
           </> : <>
             <Label muted style={{ marginTop: 12, fontSize: 12 }}>{year} · {term === '1' ? '秋季' : term === '2' ? '春季' : '夏季'} · 读取 {draft.courses.length} 门课程</Label>
-            <FieldTitle>第一周周一</FieldTitle><DateField label="第一周周一" value={monday} onChangeText={value => { setMonday(value); setConfirmed(false); }} fallback={`${year.slice(0, 4)}-09-01`} minYear={Number(year.slice(0, 4))} maxYear={Number(year.slice(5))} />
-            {!validSemester(semester) && <Label accessibilityRole="alert" style={{ color: c.orange, fontSize: 11, marginTop: 8 }}>请选择本学年内的周一。</Label>}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 16 }}><Label style={{ flex: 1, fontSize: 12 }}>{selected.some(course => !course.pending) ? '已核对学期日期与本科作息' : '已核对收集箱课程'}</Label><Switch accessibilityLabel={selected.some(course => !course.pending) ? '已核对学期日期与本科作息' : '已核对收集箱课程'} value={confirmed} onValueChange={setConfirmed} /></View>
-            <Button title={showTimes ? '收起本科作息' : '查看本科作息'} variant="ghost" small onPress={() => setShowTimes(!showTimes)} style={{ alignSelf: 'flex-start' }} />
+            {needsDates && <><FieldTitle>第一周周一</FieldTitle><DateField label="第一周周一" value={monday} onChangeText={setMonday} fallback={`${term === '1' ? year.slice(0, 4) : year.slice(5)}-${term === '1' ? '09' : term === '2' ? '03' : '07'}-01`} minYear={Number(year.slice(0, 4))} maxYear={Number(year.slice(5))} />
+            <Button title={showTimes ? '收起本科作息' : '查看本科作息'} variant="ghost" small onPress={() => setShowTimes(!showTimes)} style={{ alignSelf: 'flex-start' }} /></>}
             {showTimes && <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingTop: 8 }}>{UNDERGRADUATE_PERIODS.map(([start, end], index) => <Label key={index} muted style={{ fontSize: 11, width: 170 }}>第 {index + 1} 节　{clock(start)}–{clock(end)}</Label>)}</View>}
           </>}
         </Card>
@@ -117,7 +106,8 @@ export default function CourseImport() {
               <View style={{ marginTop: 15, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 12 }}><Label style={{ fontWeight: '600', fontSize: 12 }}>日程预览</Label>{preview.changes.slice(0, 8).map(change => <Label key={change.taskId} muted style={{ fontSize: 11, marginTop: 6 }}>{change.title} · {change.to}</Label>)}{preview.changes.length > 8 && <Label muted style={{ fontSize: 11, marginTop: 6 }}>共 {preview.changes.length} 项变更</Label>}</View>
             </>}
             {draft.ignored > 0 && <Label muted style={{ fontSize: 11, marginTop: 8 }}>已忽略 {draft.ignored} 条独立备注或重复记录。</Label>}
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 20 }}><Button title="确认导入" icon="check" disabled={!canImport} onPress={() => setConfirmImport(true)} /><Button title="重新读取" variant="ghost" onPress={() => { setDraft(null); setError(''); setConfirmed(false); }} /></View>
+            {!!blockedReason && <Label accessibilityRole="alert" accessibilityLiveRegion="polite" style={{ color: c.orange, fontSize: 12, marginTop: 16 }}>{blockedReason}</Label>}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 20 }}><Button title="确认导入" icon="check" disabled={!canImport} onPress={() => setConfirmImport(true)} /><Button title="重新读取" variant="ghost" onPress={() => { setDraft(null); setError(''); }} /></View>
           </Card>
         </>}
       </>}
@@ -125,6 +115,6 @@ export default function CourseImport() {
     </View>
   </KeyboardFormScrollView>
     <SchoolLogin visible={login} request={{ year, term }} onRead={receive} onClose={() => setLogin(false)} />
-    <Confirm visible={confirmImport} title="导入本学期课表？" description={`新增 ${preview?.added ?? 0} 项，更新 ${preview?.updated ?? 0} 项，移除 ${preview?.removed ?? 0} 项。${preview?.conflicts.length ? `其中 ${preview.conflicts.length} 项课程安排与其他事件重叠，将按原时间一并导入。` : ''}时间已识别的课程设为固定事项，其余放入收集箱。可在回顾中撤销。`} action="导入课表" onClose={() => setConfirmImport(false)} onConfirm={importNow} />
+    <Confirm visible={confirmImport} title="导入本学期课表？" description={`${year} 学年 · ${term === '1' ? '秋季' : term === '2' ? '春季' : '夏季'}学期。${needsDates ? `第一周周一：${monday}，使用本科作息。` : '所选课程放入收集箱。'}\n新增 ${preview?.added ?? 0} 项，更新 ${preview?.updated ?? 0} 项，移除 ${preview?.removed ?? 0} 项。${preview?.conflicts.length ? `其中 ${preview.conflicts.length} 项课程安排与其他事件重叠，将按原时间一并导入。` : ''}时间已识别的课程设为固定事项，其余放入收集箱。可在回顾中撤销。`} action="核对并导入" onClose={() => setConfirmImport(false)} onConfirm={importNow} />
   </>;
 }

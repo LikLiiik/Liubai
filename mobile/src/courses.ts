@@ -53,6 +53,34 @@ export function validSemester(semester: Semester): boolean {
     && Number(semester.monday.slice(0, 4)) <= Number(semester.year.slice(5)) && new Date(`${semester.monday}T12:00:00`).getDay() === 1;
 }
 
+// One source for preview readiness and its visible explanation. Reviewing the
+// semester is part of final confirmation, never a separate hidden toggle.
+export function prepareCourseImport(original: Task[], draft: CourseDraft | null, semester: Semester, excluded: string[], mode: 'merge' | 'sync', today: string) {
+  const selected = draft?.courses.filter(course => !excluded.includes(course.key)) ?? [];
+  const blocked = (reason: string, preview: CoursePreview | null = null) => ({ selected, preview, blockedReason: reason });
+  if (!draft) return blocked('请先读取课表。');
+  if (!validSemesterTerm(semester)) return blocked('请选择有效的学年和学期。');
+  if (draft.issues.length) return blocked(`有 ${draft.issues.length} 条数据未能解析，请查看解析结果并重新读取。`);
+  if (!draft.courses.length) return blocked('该学期暂无可导入课程。');
+  if (!selected.length) return blocked('请至少选择一门课程。');
+  if (selected.some(course => !course.pending)) {
+    if (!semester.monday) return blocked('请先选择第一周周一。');
+    if (!validDate(semester.monday)) return blocked('第一周日期无效，请重新选择。');
+    const year = Number(semester.monday.slice(0, 4));
+    if (year < Number(semester.year.slice(0, 4)) || year > Number(semester.year.slice(5))) return blocked(`第一周周一须在 ${semester.year} 学年内。`);
+    const weekday = new Date(`${semester.monday}T12:00:00`).getDay();
+    if (weekday !== 1) return blocked(`第一周日期须为周一，当前为周${'日一二三四五六'[weekday]}。`);
+  }
+  try {
+    const preview = previewCourseImport(original, expandCourses(selected, semester), `${semester.year}/${semester.term}`, mode, today);
+    if (!preview.valid) return blocked(preview.warnings.join('；') || '课表预览无效，请重新读取。', preview);
+    if (!preview.changes.length) return blocked('没有需要导入的变更，所选课程已存在或受手动修改保护。', preview);
+    return { selected, preview, blockedReason: '' };
+  } catch (error) {
+    return blocked(error instanceof Error ? error.message : '无法生成课表预览，请重新读取。');
+  }
+}
+
 // Read the entire field before parsing numbers: accepting a numeric substring can
 // silently turn an unsupported expression into the wrong set of lesson dates.
 function scheduleField(content: string, unit: '周' | '节'): string | undefined {

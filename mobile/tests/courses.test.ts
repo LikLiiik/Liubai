@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import vm from 'node:vm';
-import { courseFingerprint, expandCourses, parseHitszCourses, parseNumbers, previewCourseImport, validSemester } from '../src/courses.ts';
+import { courseFingerprint, expandCourses, parseHitszCourses, parseNumbers, prepareCourseImport, previewCourseImport, validSemester } from '../src/courses.ts';
 import { buildSchoolReadScript, collectHitsz, sampleSchoolFetcher, SAMPLE_ROWS, schoolUrlAllowed } from '../src/hitsz.ts';
 import { createPlan } from '../src/scheduler.ts';
 import { applyPlanToData } from '../src/planApply.ts';
@@ -15,6 +15,69 @@ import { freshGuideProgress, guideStartStep, visitGuideStep } from '../src/guide
 const semester = { year: '2026-2027', term: '1', monday: '2026-08-31' };
 const semesterKey = '2026-2027/1';
 const getTasks = () => expandCourses(parseHitszCourses(SAMPLE_ROWS).courses, semester);
+
+test('a valid read is ready to import without a separate acknowledgement toggle, including overlaps', () => {
+  const draft = parseHitszCourses(SAMPLE_ROWS);
+  const existing = { ...getTasks()[0], id: 'personal-meeting', courseImport: undefined };
+  const state = prepareCourseImport([existing], draft, semester, [], 'merge', semester.monday);
+  assert.equal(state.blockedReason, '');
+  assert.ok(state.preview?.valid);
+  assert.ok(state.preview.conflicts.length);
+  const initial = { ...createEmpty(), tasks: [existing] };
+  const result = applyPlanToData(initial, state.preview!, { id: 'ready-import', date: semester.monday, createdAt: '2026-08-31T00:00:00', title: '导入课表' });
+  assert.equal(result.error, undefined);
+  assert.equal(result.data.tasks.length, 10);
+});
+
+test('missing, invalid, out-of-year and non-Monday anchors each explain why import is unavailable', () => {
+  const draft = parseHitszCourses(SAMPLE_ROWS);
+  for (const [monday, reason] of [['', /选择第一周周一/], ['2026-02-30', /日期无效/], ['2025-09-01', /学年内/], ['2026-09-01', /当前为周二/]] as const) {
+    const state = prepareCourseImport([], draft, { ...semester, monday }, [], 'merge', semester.monday);
+    assert.match(state.blockedReason, reason);
+    assert.equal(state.preview, null);
+  }
+  assert.equal(prepareCourseImport([], draft, semester, [], 'merge', semester.monday).blockedReason, '');
+});
+
+test('pending-only selection needs no calendar anchor while deselecting every course gives a reason', () => {
+  const draft = parseHitszCourses([...SAMPLE_ROWS, { KEY: 'bz1', SKSJ: '健康跑 备注:时间待定' }]);
+  const excluded = draft.courses.filter(course => !course.pending).map(course => course.key);
+  const pending = prepareCourseImport([], draft, { ...semester, monday: '' }, excluded, 'merge', semester.monday);
+  assert.equal(pending.blockedReason, '');
+  assert.equal(pending.preview?.added, 1);
+  assert.equal(pending.preview?.tasks[0].date, null);
+  assert.match(prepareCourseImport([], draft, semester, draft.courses.map(course => course.key), 'sync', semester.monday).blockedReason, /至少选择一门/);
+});
+
+test('unreadable or unchanged data and expansion failures have visible blockers instead of a silent disabled button', () => {
+  const draft = parseHitszCourses(SAMPLE_ROWS);
+  assert.match(prepareCourseImport([], null, semester, [], 'merge', semester.monday).blockedReason, /先读取/);
+  assert.match(prepareCourseImport([], draft, { ...semester, year: '2026-2026' }, [], 'merge', semester.monday).blockedReason, /有效的学年/);
+  assert.match(prepareCourseImport([], { ...draft, issues: ['课程名称缺失'] }, semester, [], 'merge', semester.monday).blockedReason, /未能解析/);
+  assert.match(prepareCourseImport([], { ...draft, courses: [] }, semester, [], 'merge', semester.monday).blockedReason, /暂无可导入/);
+  const repeated = prepareCourseImport(getTasks(), draft, semester, [], 'merge', semester.monday);
+  assert.match(repeated.blockedReason, /没有需要导入的变更/);
+  assert.equal(repeated.preview?.unchanged, 9);
+  const invalid = { ...draft, courses: [{ ...draft.courses[0], periods: [13] }] };
+  assert.match(prepareCourseImport([], invalid, semester, [], 'merge', semester.monday).blockedReason, /节次/);
+});
+
+test('a duplicate identifier prevents import with an explanation, and a preview cannot overwrite newer tasks', () => {
+  const draft = parseHitszCourses(SAMPLE_ROWS);
+  const collision = { ...getTasks()[0], courseImport: undefined };
+  const invalid = prepareCourseImport([collision], draft, semester, [], 'merge', semester.monday);
+  assert.equal(invalid.preview?.valid, false);
+  assert.match(invalid.blockedReason, /重复课程标识/);
+  const ready = prepareCourseImport([], draft, semester, [], 'merge', semester.monday);
+  const changed = { ...createEmpty(), tasks: [collision] };
+  assert.ok(applyPlanToData(changed, ready.preview!, { id: 'stale', date: semester.monday, createdAt: '2026-08-31T00:00:00', title: '导入课表' }).error);
+});
+
+test('v19 users receive the import confirmation lesson without losing previous completion', () => {
+  const previous = { ...freshGuideProgress(), revision: 19, completedRevision: 19, deferredRevision: 19 };
+  assert.equal(guideStartStep(previous), 'preferences');
+  assert.equal(visitGuideStep(previous, 'preferences').completedRevision, 19);
+});
 
 test('the reported experiment titles retain their prefix and numeric schedule fields parse separately', () => {
   const source = [

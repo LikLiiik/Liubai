@@ -4,7 +4,7 @@ import { createPlan } from '../scheduler';
 import type { AppData, Category, PlanMode, Task } from '../types';
 import { clock, taskPosition, uid } from '../utils';
 import { colors as c } from '../theme';
-import { Badge, Button, FieldTitle, Icon, Label } from './ui';
+import { Badge, Button, Confirm, FieldTitle, Icon, Label } from './ui';
 import { TimeField, TimeWheelPicker } from './TimeField';
 import { DateField } from './DateField';
 import { durationTime } from '../timePicker';
@@ -39,22 +39,26 @@ export function CourseImportGuideLesson() {
     return { initial, monday, preview: previewCourseImport(initial.tasks, tasks, `${selection.year}/${selection.term}/sample`, 'merge', monday) };
   }, [selection]);
   const [example, setExample] = useState(lesson.initial);
+  const [reviewing, setReviewing] = useState(false);
   const imported = example.tasks.length > 0;
   return <View style={{ marginTop: 18, padding: 16, borderRadius: 13, backgroundColor: c.bg, gap: 10 }}>
     <Badge title="课表导入演示 · 不改变日程" tone="neutral" />
-    <SemesterSelector value={selection} onChange={next => { setSelection(next); setExample(createEmpty()); }} currentYear={2026} />
+    <SemesterSelector value={selection} onChange={next => { setSelection(next); setExample(createEmpty()); setReviewing(false); }} currentYear={2026} />
+    <Label muted style={{ fontSize: 11 }}>第一周周一：{lesson.monday} · 本科作息</Label>
     <Label style={{ fontWeight: '600', fontSize: 13 }}>重叠课程也可保留</Label>
     {lesson.preview.conflicts.map(conflict => <Label key={conflict.key} style={{ fontSize: 11, color: c.orange }}>{conflict.message}</Label>)}
-    {!imported ? <Button title="演示：导入重叠课程" small onPress={() => {
-      const result = applyPlanToData(lesson.initial, lesson.preview, { id: 'guide-course-import', date: lesson.monday, createdAt: '2026-08-31T00:00:00', title: '示例课表导入' });
-      if (!result.error) setExample(result.data);
-    }} /> : <>
+    {!imported ? <Button title="演示：确认导入" small onPress={() => setReviewing(true)} /> : <>
       <Label accessibilityLiveRegion="polite" style={{ fontSize: 12, color: c.green }}>已导入 2 项课程，保留各自上课时间。</Label>
       <View style={{ height: 160, position: 'relative' }}>{layoutDay(example.tasks).map(({ task, lane, lanes }) => <View key={task.id} style={{ position: 'absolute', left: `${lane / lanes * 100}%`, width: `${100 / lanes}%`, top: (task.start! - 510) * 0.8, height: task.duration * 0.8, padding: 3 }}>
         <View style={{ flex: 1, padding: 8, borderRadius: 8, backgroundColor: c.lavender, borderWidth: 1, borderColor: c.border }}><Label style={{ fontSize: 10 }}>{clock(task.start!)}–{clock(task.start! + task.duration)}</Label><Label numberOfLines={2} style={{ fontSize: 12, marginTop: 4 }}>{task.title}</Label><Label muted style={{ fontSize: 10, marginTop: 4 }}>固定课程</Label></View>
       </View>)}</View>
       <Button title="重试课表导入演示" small variant="ghost" onPress={() => setExample(lesson.initial)} />
     </>}
+    <Confirm visible={reviewing} title="核对示例课表" description={`${selection.year} 学年 · ${selection.term === '1' ? '秋季' : selection.term === '2' ? '春季' : '夏季'}学期。第一周周一：${lesson.monday}，使用本科作息。\n导入 2 项重叠课程，保留各自时间。此演示不改变个人日程。`} action="演示：核对并导入" onClose={() => setReviewing(false)} onConfirm={() => {
+      const result = applyPlanToData(lesson.initial, lesson.preview, { id: 'guide-course-import', date: lesson.monday, createdAt: '2026-08-31T00:00:00', title: '示例课表导入' });
+      if (!result.error) setExample(result.data);
+      setReviewing(false);
+    }} />
   </View>;
 }
 
