@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { changeDatePart, datePartsKey, daysInMonth, numberRange, readDateParts } from '../src/datePicker.ts';
+import { academicYearOptions, changeDatePart, datePartsKey, daysInMonth, numberRange, readDateParts } from '../src/datePicker.ts';
 import { freshGuideProgress, guideStartStep, visitGuideStep } from '../src/guide.ts';
 import { readWheelDraft } from '../src/timePicker.ts';
 
@@ -49,4 +49,17 @@ test('returning v15 users start at date selection teaching without resetting com
   const previous = { ...freshGuideProgress(), revision: 15, completedRevision: 15, deferredRevision: 15 };
   assert.equal(guideStartStep(previous), 'tasks');
   assert.equal(visitGuideStep(previous, 'tasks').completedRevision, 15);
+});
+
+
+test('academic year choices follow the current year and retain a separately selected older year without duplicates', () => {
+  const choices = academicYearOptions(2026, '2026-2027');
+  assert.ok(choices.includes('2024-2025')); assert.ok(choices.includes('2027-2028'));
+  assert.equal(new Set(choices).size, choices.length);
+  assert.ok(academicYearOptions(2027, '2018-2019').includes('2018-2019'));
+  assert.ok(!academicYearOptions(2026, '2026-2028').includes('2026-2028'));
+  for (const year of [1900, 2198]) assert.ok(academicYearOptions(year, '').every(key => {
+    const [start, end] = key.split('-').map(Number);
+    return start >= 1900 && end <= 2199 && end === start + 1;
+  }));
 });

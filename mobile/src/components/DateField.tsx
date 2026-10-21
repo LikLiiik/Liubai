@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Keyboard, Pressable, View } from 'react-native';
-import { changeDatePart, datePartsKey, MAX_DATE_YEAR, MIN_DATE_YEAR, daysInMonth, numberRange, readDateParts, type DateParts } from '../datePicker';
+import { academicYearOptions, changeDatePart, datePartsKey, MAX_DATE_YEAR, MIN_DATE_YEAR, daysInMonth, numberRange, readDateParts, type DateParts } from '../datePicker';
 import { dateKey } from '../utils';
 import { colors as c } from '../theme';
 import { NumberWheel } from './TimeField';
-import { Button, Icon, Label } from './ui';
+import { Button, Chip, Icon, Label } from './ui';
 
 // Stored dates remain ISO keys; the user edits only independent numeric parts.
 export function DateField({ value, onChangeText, label, optional = false, disabled = false, fallback, minYear = MIN_DATE_YEAR, maxYear = MAX_DATE_YEAR }: {
@@ -41,14 +41,15 @@ export function DateField({ value, onChangeText, label, optional = false, disabl
   </View>;
 }
 
-export function AcademicYearField({ value, onChangeText, label = '课表学年' }: { value: string; onChangeText: (value: string) => void; label?: string }) {
+export function AcademicYearField({ value, onChangeText, label = '课表学年', currentYear = new Date().getFullYear() }: { value: string; onChangeText: (value: string) => void; label?: string; currentYear?: number }) {
   const [open, setOpen] = useState(false);
   const start = Math.max(MIN_DATE_YEAR, Math.min(MAX_DATE_YEAR - 1, Number(value.slice(0, 4)) || new Date().getFullYear()));
-  return <View style={{ padding: 10, borderWidth: 1, borderColor: c.border, borderRadius: 12, backgroundColor: '#fff' }}>
-    <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
+  return <View style={{ gap: 10 }}>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{academicYearOptions(currentYear, value).map(year => <Chip key={year} title={year} selected={year === value} onPress={() => { Keyboard.dismiss(); onChangeText(year); }} />)}</View>
+    <Button title={open ? '收起其他学年' : '其他学年'} icon="calendar" small variant="ghost" onPress={() => { Keyboard.dismiss(); setOpen(previous => !previous); }} style={{ alignSelf: 'flex-start' }} />
+    {open && <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start', padding: 10, borderWidth: 1, borderColor: c.border, borderRadius: 12, backgroundColor: '#fff' }}>
       <NumberWheel label={`${label}起始年份`} unit="年起" digits={4} values={numberRange(MIN_DATE_YEAR, MAX_DATE_YEAR - 1)} value={start} expanded={open} onChange={year => onChangeText(`${year}-${year + 1}`)} />
       <Label muted style={{ fontSize: 12, paddingTop: 14 }}>至 {start + 1} 年</Label>
-      <Pressable accessibilityRole="button" accessibilityLabel={`${open ? '收起' : '滚动选择'}${label}`} onPress={() => { Keyboard.dismiss(); setOpen(previous => !previous); }} style={{ minHeight: 44, width: 28, alignItems: 'center', justifyContent: 'center' }}><Icon name={open ? 'chevron-up' : 'calendar'} color={c.purple} size={18} /></Pressable>
-    </View>
+    </View>}
   </View>;
 }

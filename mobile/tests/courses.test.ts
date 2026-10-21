@@ -8,7 +8,7 @@ import { applyPlanToData } from '../src/planApply.ts';
 import { createEmpty } from '../src/seed.ts';
 import { dayBudget } from '../src/budget.ts';
 import { overlaps } from '../src/time.ts';
-import { layoutDay, moveTaskTo } from '../src/week.ts';
+import { layoutDay, moveTaskTo, weekDates } from '../src/week.ts';
 import type { Task } from '../src/types.ts';
 import { freshGuideProgress, guideStartStep, visitGuideStep } from '../src/guide.ts';
 
@@ -330,7 +330,7 @@ test('read-only transport selects the requested semester and strips non-course d
   await assert.rejects(collectHitsz(async () => '<html>login</html>', { year: semester.year, term: semester.term }));
 });
 
-async function runBridge(handler: (path: string, options: Record<string, unknown>) => Promise<unknown>, hostname = 'jw.hitsz.edu.cn') {
+async function runBridge(handler: (path: string, options: Record<string, unknown>) => Promise<unknown>, hostname = 'jw.hitsz.edu.cn', request = { year: semester.year, term: semester.term }) {
   const calls: string[] = [];
   const message = await new Promise<Record<string, unknown>>((resolve, reject) => {
     const context = { location: { hostname }, URL, URLSearchParams, AbortController, setTimeout, clearTimeout,
@@ -339,7 +339,7 @@ async function runBridge(handler: (path: string, options: Record<string, unknown
         calls.push(path);
         return handler(path, options);
       } };
-    try { vm.runInNewContext(buildSchoolReadScript({ year: semester.year, term: semester.term }, 'test-id'), context); }
+    try { vm.runInNewContext(buildSchoolReadScript(request, 'test-id'), context); }
     catch (error) { reject(error); }
   });
   return { message, calls };
@@ -368,4 +368,33 @@ test('the injected reader fails on login pages, expired redirects and unapproved
   assert.equal(wrongHost.calls.length, 0); assert.equal(wrongHost.message.ok, false);
   assert.equal(schoolUrlAllowed('https://sso.hitsz.edu.cn:7002/cas/login'), true);
   for (const url of ['https://hitsz.edu.cn.evil.test', 'javascript:alert(1)', 'file:///data/private', 'https://evil.test', 'http://sso.hitsz.edu.cn']) assert.equal(schoolUrlAllowed(url), false);
+});
+
+
+test('selected historical and future years and all three terms reach both transport paths and imported course sources', async () => {
+  for (const request of [{ year: '2024-2025', term: '1' }, { year: '2025-2026', term: '2' }, { year: '2027-2028', term: '3' }]) {
+    const monday = weekDates(`${request.year.slice(0, 4)}-09-07`)[0];
+    const fetcher = async (path: string, fields: Record<string, string>) => {
+      assert.equal(fields.xn, request.year); assert.equal(fields.xq, request.term);
+      return path.includes('queryRl') ? { content: [{ rq: monday }] } : SAMPLE_ROWS;
+    };
+    const read = await collectHitsz(fetcher, request);
+    assert.equal(read.year, request.year); assert.equal(read.term, request.term);
+    const bridge = await runBridge(async (path, options) => {
+      const fields = Object.fromEntries(new URLSearchParams(options.body as string));
+      const payload = await fetcher(path, fields);
+      return { ok: true, url: `http://jw.hitsz.edu.cn${path}`, text: async () => JSON.stringify(payload) };
+    }, 'jw.hitsz.edu.cn', request);
+    assert.equal(bridge.message.ok, true);
+    const result = bridge.message.data as { year: string; term: string; monday: string; rows: unknown };
+    assert.equal(result.year, request.year); assert.equal(result.term, request.term);
+    const tasks = expandCourses(parseHitszCourses(result.rows).courses, result);
+    assert.ok(tasks.every(task => task.courseImport?.semester === `${request.year}/${request.term}`));
+  }
+});
+
+test('v17 tutorial completion leads to the revised semester selection lesson', () => {
+  const previous = { ...freshGuideProgress(), revision: 17, completedRevision: 17, deferredRevision: 17 };
+  assert.equal(guideStartStep(previous), 'preferences');
+  assert.equal(visitGuideStep(previous, 'preferences').completedRevision, 17);
 });

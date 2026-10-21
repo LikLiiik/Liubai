@@ -2,6 +2,13 @@ export type DateParts = { year: number; month: number; day: number };
 export const MIN_DATE_YEAR = 1900;
 export const MAX_DATE_YEAR = 2199;
 export const numberRange = (min: number, max: number) => Array.from({ length: Math.max(0, max - min + 1) }, (_, index) => min + index);
+export function academicYearOptions(current: number, selected: string): string[] {
+  const anchor = Math.min(MAX_DATE_YEAR - 1, Math.max(MIN_DATE_YEAR, current));
+  const years = numberRange(Math.max(MIN_DATE_YEAR, anchor - 4), Math.min(MAX_DATE_YEAR - 1, anchor + 1));
+  const match = /^(\d{4})-(\d{4})$/.exec(selected);
+  if (match && Number(match[1]) >= MIN_DATE_YEAR && Number(match[2]) <= MAX_DATE_YEAR && Number(match[2]) === Number(match[1]) + 1) years.push(Number(match[1]));
+  return [...new Set(years)].sort((a, b) => b - a).map(year => `${year}-${year + 1}`);
+}
 export function daysInMonth(year: number, month: number): number {
   return month === 2 ? year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28 : [4, 6, 9, 11].includes(month) ? 30 : 31;
 }

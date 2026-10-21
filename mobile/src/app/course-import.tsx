@@ -6,9 +6,10 @@ import { usePlanning } from '../store';
 import { colors as c } from '../theme';
 import { clock } from '../utils';
 import { expandCourses, parseHitszCourses, previewCourseImport, UNDERGRADUATE_PERIODS, validSemester, validSemesterTerm, type CourseDraft } from '../courses';
-import type { SchoolRead } from '../hitsz';
+import type { SchoolRead, SchoolRequest } from '../hitsz';
 import { SchoolLogin } from '../components/SchoolLogin';
-import { AcademicYearField, DateField } from '../components/DateField';
+import { SemesterSelector } from '../components/SemesterSelector';
+import { DateField } from '../components/DateField';
 import { Badge, Button, Card, Chip, Confirm, FieldTitle, Icon, Label } from '../components/ui';
 
 export default function CourseImport() {
@@ -44,8 +45,14 @@ export default function CourseImport() {
   }, [draft, year, term, monday, data.tasks, excluded, mode, today]);
   const canImport = !!preview?.valid && !!preview.changes.length && confirmed && !!selected.length;
 
+  function selectSemester(next: SchoolRequest) {
+    if (next.year === year && next.term === term) return;
+    setYear(next.year); setTerm(next.term); setMonday(''); setDraft(null); setExcluded([]);
+    setConfirmed(false); setConfirmImport(false); setError(''); setMode('merge');
+  }
   function receive(value: SchoolRead) {
     try {
+      if (value.year !== year || value.term !== term) throw new Error('读取结果与所选学年学期不一致，请重新读取。');
       const next = parseHitszCourses(value.rows);
       setDraft(next); setYear(value.year); setTerm(value.term); setMonday(value.monday);
       setMode('merge'); setConfirmed(false); setExcluded([]); setDone(false); setError(''); setLogin(false);
@@ -75,12 +82,11 @@ export default function CourseImport() {
       </Card> : <>
         <Card style={{ marginBottom: 18 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}><Icon name="book-open" color={c.purple} /><Label style={{ fontWeight: '600', flexShrink: 1 }}>哈尔滨工业大学（深圳）</Label><Badge title="本科生" tone="neutral" /></View>
+          <SemesterSelector value={{ year, term }} onChange={selectSemester} currentYear={yearNumber} />
           {!draft ? <>
-            <FieldTitle>学年</FieldTitle><AcademicYearField value={year} onChangeText={setYear} />
-            <FieldTitle>学期</FieldTitle><View style={{ flexDirection: 'row', gap: 8 }}>{[['1', '秋季'], ['2', '春季'], ['3', '夏季']].map(([value, title]) => <Chip key={value} title={title} selected={term === value} onPress={() => setTerm(value)} />)}</View>
             <Label muted style={{ fontSize: 11, marginTop: 17 }}>{Platform.OS === 'web' ? '教务登录与课表读取在手机端完成。' : '在学校页面完成登录后，进入个人课表并读取。账号密码不在留白中保存。'}</Label>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 18 }}>
-              {Platform.OS !== 'web' && <Button title="登录教务并读取" icon="log-in" disabled={!/^\d{4}-\d{4}$/.test(year)} onPress={() => { setError(''); setLogin(true); }} />}
+              {Platform.OS !== 'web' && <Button title="登录教务并读取" icon="log-in" disabled={!validSemesterTerm({ year, term })} onPress={() => { setError(''); setLogin(true); }} />}
               {Platform.OS === 'web' && <Label muted style={{ fontSize: 12 }}>请在安卓 APP 中使用教务导入。</Label>}
             </View>
           </> : <>
