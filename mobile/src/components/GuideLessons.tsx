@@ -22,6 +22,7 @@ import { expandCourses, parseHitszCourses, previewCourseImport } from '../course
 import { applyPlanToData } from '../planApply';
 import { SemesterSelector } from './SemesterSelector';
 import { layoutDay, weekDates } from '../week';
+export { CompletionRescheduleGuideLesson } from './GuideCompletionRescheduleLesson';
 export { WeekGuideLesson } from './GuideWeekLesson';
 export { WeekZoomGuideLesson } from './GuideWeekZoomLesson';
 

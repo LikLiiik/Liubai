@@ -297,9 +297,9 @@ test('overnight overlap reports every counterpart once and ignores point reminde
   assert.ok(message.includes('另一预约')); assert.ok(!message.includes('小事'));
 });
 
-test('v16 guide completion is preserved when introducing overlapping course imports', () => {
+test('v16 completion is preserved while revised lessons remain accessible', () => {
   const previous = { ...freshGuideProgress(), revision: 16, completedRevision: 16, deferredRevision: 16 };
-  assert.equal(guideStartStep(previous), 'preferences');
+  assert.equal(guideStartStep(previous), 'completion');
   assert.equal(visitGuideStep(previous, 'preferences').completedRevision, 16);
 });
 
@@ -393,8 +393,8 @@ test('selected historical and future years and all three terms reach both transp
   }
 });
 
-test('v17 tutorial completion leads to the revised semester selection lesson', () => {
+test('v17 completion is preserved while revised completion and semester lessons remain accessible', () => {
   const previous = { ...freshGuideProgress(), revision: 17, completedRevision: 17, deferredRevision: 17 };
-  assert.equal(guideStartStep(previous), 'preferences');
+  assert.equal(guideStartStep(previous), 'completion');
   assert.equal(visitGuideStep(previous, 'preferences').completedRevision, 17);
 });

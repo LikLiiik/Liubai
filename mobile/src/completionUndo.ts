@@ -48,13 +48,14 @@ export function completionAdvanceFor(data: Source, taskId: string): CompletionAd
   return validCompletionAdvance(record) ? record : null;
 }
 
-export function previewCompletionUndo(data: Source, taskId: string, choice: CompletionUndoChoice): CompletionUndoPreview {
+export function previewCompletionUndo(data: Source, taskId: string, choice: CompletionUndoChoice,
+  placement?: Pick<Task, 'date' | 'start'> & Partial<Pick<Task, 'deadline'>>): CompletionUndoPreview {
   const source = data.tasks.find(task => task.id === taskId);
   const advance = completionAdvanceFor(data, taskId);
-  const key = JSON.stringify([taskId, choice, data.tasks, advance]);
+  const key = JSON.stringify([taskId, choice, data.tasks, advance, placement]);
   const result: CompletionUndoPreview = { tasks: data.tasks, key, changes: [], skipped: [], conflicts: [], consentKey: '', valid: !!source?.completed };
   if (!source?.completed) return result;
-  const restored = { ...source, completed: false, completedAt: undefined, completionAdvance: undefined };
+  const restored = { ...source, ...placement, completed: false, completedAt: undefined, completionAdvance: undefined };
   const moves = new Map<string, CompletionMove>();
   if (choice === 'cancel-advance') for (const move of advance?.moves ?? []) {
     const task = data.tasks.find(task => task.id === move.taskId);

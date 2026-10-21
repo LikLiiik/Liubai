@@ -13,6 +13,7 @@ import { validTaskTiming } from './quick';
 import { createAdvancePlan, setTaskCompletion } from './completion';
 import { completionAdvanceFor, previewCompletionUndo, validCompletionAdvance, type CompletionUndoChoice } from './completionUndo';
 import { withNickname } from './profile';
+import { applyCompletionReschedule, completionTimePassed, type CompletionRescheduleRequest } from './completionReschedule';
 
 type Store = {
   data: AppData;
@@ -36,6 +37,8 @@ type Store = {
   completionOffer: string | null;
   completionRestore: { taskId: string; key: string; conflicts: string[]; undo?: { choice: CompletionUndoChoice; previewKey: string } } | null;
   completionUndo: string | null;
+  completionReschedule: { taskId: string; choice: CompletionUndoChoice } | null;
+  rescheduleCompletion: (request: CompletionRescheduleRequest, previewKey: string, consentKey?: string) => boolean;
   undoCompletion: (id: string, choice: CompletionUndoChoice, previewKey: string, consentKey?: string) => boolean;
   dismissCompletionOffer: () => void;
   reset: () => void;
@@ -89,6 +92,7 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
   const [completionOffer, setCompletionOffer] = useState<string | null>(null);
   const [completionRestore, setCompletionRestore] = useState<Store['completionRestore']>(null);
   const [completionUndo, setCompletionUndo] = useState<string | null>(null);
+  const [completionReschedule, setCompletionReschedule] = useState<Store['completionReschedule']>(null);
   const [tick, setTick] = useState(() => new Date());
   const today = dateKey(tick);
   const timezoneOffset = tick.getTimezoneOffset();
@@ -162,7 +166,9 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
     let offer = false;
     let restore: Store['completionRestore'] = null;
     let askUndo = false;
+    let askReschedule = false;
     const changed = commit(previous => {
+      if (!completed && completionTimePassed(previous.tasks.find(task => task.id === id), moment)) { askReschedule = true; return previous; }
       if (!completed && completionAdvanceFor(previous, id)) { askUndo = true; return previous; }
       const result = setTaskCompletion(previous.tasks, id, completed, moment.toISOString(), consentKey);
       if (result.confirmation) restore = { taskId: id, key: result.confirmation.key, conflicts: result.confirmation.conflicts.map(task => task.title) };
@@ -172,24 +178,28 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
       offer = completed && createAdvancePlan(tasks, previous.settings, id, context.date, context.now).changes.length > 0;
       return { ...previous, tasks };
     });
-    if (askUndo) { setCompletionOffer(null); setCompletionRestore(null); setCompletionUndo(id); }
+    if (askReschedule) { setCompletionOffer(null); setCompletionRestore(null); setCompletionUndo(null); setCompletionReschedule({ taskId: id, choice: 'keep' }); }
+    if (askUndo) { setCompletionReschedule(null); setCompletionOffer(null); setCompletionRestore(null); setCompletionUndo(id); }
     if (restore) { setCompletionOffer(null); setCompletionRestore(restore); }
     if (changed) {
       setCompletionUndo(null);
+      setCompletionReschedule(null);
       setCompletionRestore(null);
       setCompletionOffer(offer ? id : null);
       notify(completed ? '已标记完成。' : '已恢复为待完成。');
     }
     return changed;
   }, [commit, notify]);
-  const dismissCompletionOffer = useCallback(() => { setCompletionOffer(null); setCompletionRestore(null); setCompletionUndo(null); }, []);
+  const dismissCompletionOffer = useCallback(() => { setCompletionOffer(null); setCompletionRestore(null); setCompletionUndo(null); setCompletionReschedule(null); }, []);
   const undoCompletion = useCallback((id: string, choice: CompletionUndoChoice, previewKey: string, consentKey?: string) => {
     let restore: Store['completionRestore'] = null;
     let message = '';
+    let askReschedule = false;
     const changed = commit(previous => {
       const result = previewCompletionUndo(previous, id, choice);
       if (!result.valid) { message = '此事件的完成状态已变更。'; return previous; }
       if (result.key !== previewKey) { message = '日程已变化，请重新核对撤销预览。'; return previous; }
+      if (completionTimePassed(previous.tasks.find(task => task.id === id), new Date())) { askReschedule = true; return previous; }
       if (result.conflicts.length && consentKey !== result.consentKey) {
         restore = { taskId: id, key: result.consentKey, conflicts: result.conflicts.map(task => task.title), undo: { choice, previewKey } };
         return previous;
@@ -197,10 +207,22 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
       message = choice === 'cancel-advance' ? `已撤销完成，${result.changes.length} 项恢复提前前的时间。${result.skipped.length ? '已变更的事项保持当前安排。' : ''}` : '已撤销完成，后续提前保持不变。';
       return { ...previous, tasks: result.tasks };
     });
-    if (restore) setCompletionRestore(restore);
+    if (askReschedule) { setCompletionRestore(null); setCompletionUndo(null); setCompletionReschedule({ taskId: id, choice }); }
+    else if (restore) setCompletionRestore(restore);
     else if (changed) { setCompletionOffer(null); setCompletionUndo(null); setCompletionRestore(null); }
     else { setCompletionRestore(null); setCompletionUndo(id); }
     if (message) notify(message);
+    return changed;
+  }, [commit, notify]);
+  const rescheduleCompletion = useCallback((request: CompletionRescheduleRequest, previewKey: string, consentKey?: string) => {
+    let error: string | undefined;
+    const changed = commit(previous => {
+      const result = applyCompletionReschedule(previous, request, previewKey, new Date(), uid(), consentKey);
+      error = result.error;
+      return result.data;
+    });
+    if (changed) { setCompletionOffer(null); setCompletionRestore(null); setCompletionUndo(null); setCompletionReschedule(null); }
+    notify(error ?? '已撤销完成并重新安排，可在回顾中撤销本次安排。');
     return changed;
   }, [commit, notify]);
   const applyPlan = useCallback((plan: PlanResult, title: string, options?: { demo: boolean }) => {
@@ -254,7 +276,7 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
   const planning = planningContext(today, now, data.settings);
   return <Context.Provider value={{ data, loading, loadError, saveStatus, today, now,
     planningDate: planning.date, planningNow: planning.now, toast, notify, mutateTasks, applyPlan,
-    undoPlan, updateSettings, setNickname, toggleImportant, addCategory, setCompleted, completionOffer, completionRestore, completionUndo, undoCompletion, dismissCompletionOffer, reset, reload, refreshEndCompletions, isCurrentEndReminder }}>{children}</Context.Provider>;
+    undoPlan, updateSettings, setNickname, toggleImportant, addCategory, setCompleted, completionOffer, completionRestore, completionUndo, undoCompletion, completionReschedule, rescheduleCompletion, dismissCompletionOffer, reset, reload, refreshEndCompletions, isCurrentEndReminder }}>{children}</Context.Provider>;
 }
 
 export function usePlanning() {

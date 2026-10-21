@@ -7,13 +7,15 @@ import { Button, Confirm, Dialog, Icon, Label } from './ui';
 import { planningContext } from '../time';
 import { dateKey } from '../utils';
 import { previewCompletionUndo } from '../completionUndo';
+import { CompletionRescheduleDialog } from './CompletionRescheduleDialog';
 
 export function CompletionAdvanceDialog() {
-  const { data, completionOffer, completionRestore, completionUndo, undoCompletion, setCompleted, dismissCompletionOffer, applyPlan } = usePlanning();
+  const { data, completionOffer, completionRestore, completionUndo, undoCompletion, completionReschedule, rescheduleCompletion, setCompleted, dismissCompletionOffer, applyPlan } = usePlanning();
   const moment = new Date();
   const context = planningContext(dateKey(moment), moment.getHours() * 60 + moment.getMinutes(), data.settings);
   const plan = useMemo(() => createAdvancePlan(data.tasks, data.settings, completionOffer ?? '', context.date, context.now),
     [data.tasks, data.settings, completionOffer, context.date, context.now]);
+  if (completionReschedule) return <CompletionRescheduleDialog key={completionReschedule.taskId} data={data} taskId={completionReschedule.taskId} initialChoice={completionReschedule.choice} onClose={dismissCompletionOffer} onConfirm={rescheduleCompletion} />;
   if (completionRestore) return <Confirm visible title="恢复后会与其他事项重叠" description={`恢复为未完成后，会与${completionRestore.conflicts.map(title => `「${title}」`).join('、')}重叠。${completionRestore.undo ? '确认后按刚才的选择撤销完成并保留这些重叠；取消不会修改事项。' : '可先取消，在回顾撤销提前安排；也可确认保留重叠。'}`}
     action="确认恢复并保留重叠" onClose={dismissCompletionOffer} onConfirm={() => completionRestore.undo
       ? undoCompletion(completionRestore.taskId, completionRestore.undo.choice, completionRestore.undo.previewKey, completionRestore.key)
