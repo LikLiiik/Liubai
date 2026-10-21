@@ -151,10 +151,12 @@ test('task and inbox switches are independent; revoked permission cancels both',
   const source = data([task('scheduled', { date: day, start: 900 }), task('inbox')]);
   source.settings.notificationsEnabled = true;
   await system.sync(source);
-  assert.equal(system.scheduled.size, 8);
+  assert.equal(system.scheduled.size, 9);
   source.settings.inboxRemindersEnabled = false;
   await system.sync(source);
-  assert.deepEqual([...system.scheduled.keys()], ['liubai-scheduled']);
+  assert.equal(system.scheduled.size, 2);
+  assert.ok(system.scheduled.has('liubai-scheduled'));
+  assert.equal([...system.scheduled.values()].filter(item => item.notification.data.kind === 'task-end').length, 1);
   source.settings.inboxRemindersEnabled = true;
   source.settings.notificationsEnabled = false;
   await system.sync(source);

@@ -1,8 +1,9 @@
 import type { AppData } from './types.ts';
 import { isQuick } from './quick.ts';
+import { END_CATEGORY, END_RESCUE, decodeEndResponse, endAt, endReminderFor, endResponseTarget } from './taskEndReminders.ts';
 import { INBOX_REMINDER_PREFIX, localMoment, parseReminderLedger, planInboxReminders, retainReminderLedger, suggestionMessage } from './inboxReminders.ts';
 
-export type LocalNotification = { id: string; at: number; title: string; body: string; channel: 'tasks' | 'inbox'; data: Record<string, string> };
+export type LocalNotification = { id: string; at: number; title: string; body: string; channel: 'tasks' | 'inbox'; category?: string; data: Record<string, string> };
 export type NotificationDriver = {
   now: () => Date;
   permission: () => Promise<boolean>;
@@ -11,6 +12,8 @@ export type NotificationDriver = {
   schedule: (notification: LocalNotification, signature: string) => Promise<void>;
   readLedger: () => Promise<string | null>;
   writeLedger: (value: string) => Promise<void>;
+  presented?: () => Promise<{ id: string; data: Record<string, unknown> }[]>;
+  dismiss?: (id: string) => Promise<void>;
 };
 export const notificationSignature = (notification: LocalNotification) => JSON.stringify(notification);
 
@@ -22,16 +25,30 @@ export function createNotificationSync(driver: NotificationDriver): (data: AppDa
     queue = queue.catch(() => {}).then(async () => {
       const snapshot = latest;
       const moment = driver.now();
-      const [pending, rawLedger, granted] = await Promise.all([driver.pending(), driver.readLedger(), driver.permission()]);
+      const [pending, rawLedger, granted, presented] = await Promise.all([driver.pending(), driver.readLedger(), driver.permission(), driver.presented?.() ?? []]);
       const enabled = !snapshot.demo && granted;
+      for (const notification of presented) {
+        if (!notification.id.startsWith('liubai-end-')) continue;
+        const event = decodeEndResponse(notification.id, notification.data, END_RESCUE);
+        if (!enabled || !snapshot.settings.notificationsEnabled || !event || !endResponseTarget(snapshot, event, moment)) await driver.dismiss?.(notification.id);
+      }
       const ledger = parseReminderLedger(rawLedger, moment);
       const suggestions = enabled ? planInboxReminders(snapshot, moment, ledger) : [];
       const desired: LocalNotification[] = [];
       if (enabled && snapshot.settings.notificationsEnabled) {
-        desired.push(...snapshot.tasks.filter(task => !task.completed && task.date && task.start !== null)
-          .map(task => ({ task, at: localMoment(task.date!, task.start!).getTime() })).filter(item => item.at > moment.getTime())
-          .sort((a, b) => a.at - b.at).slice(0, 50).map(({ task, at }) => ({ id: `liubai-${task.id}`, at,
-            title: isQuick(task) ? '留白 · 顺手做件小事' : '留白 · 接下来做这件事', body: task.title, channel: 'tasks' as const, data: { kind: isQuick(task) ? 'quick' : 'task', taskId: task.id } })));
+        const events: LocalNotification[] = [];
+        for (const task of snapshot.tasks.filter(task => !task.completed && task.date && task.start !== null)) {
+          const start = localMoment(task.date!, task.start!).getTime();
+          if (start > moment.getTime()) events.push({ id: `liubai-${task.id}`, at: start,
+            title: isQuick(task) ? '留白 · 顺手做件小事' : '留白 · 接下来做这件事', body: task.title,
+            channel: 'tasks', data: { kind: isQuick(task) ? 'quick' : 'task', taskId: task.id } });
+          const end = endReminderFor(task);
+          if (end && endAt(end) > moment.getTime()) events.push({ id: end.id, at: endAt(end), title: '留白 · 这件事完成了吗？',
+            body: `「${task.title}」已到结束时间`, channel: 'tasks', category: END_CATEGORY,
+            data: { kind: 'task-end', taskId: task.id, date: end.date, start: String(end.start), duration: String(end.duration) } });
+        }
+        // Share the existing OS request budget between start and end reminders.
+        desired.push(...events.sort((a, b) => a.at - b.at || a.id.localeCompare(b.id)).slice(0, 50));
       }
       for (const suggestion of suggestions) desired.push({ id: INBOX_REMINDER_PREFIX + suggestion.day, at: suggestion.at,
         title: '留白 · 有一段空闲时间', body: suggestionMessage(suggestion), channel: 'inbox',

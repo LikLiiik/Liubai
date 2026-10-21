@@ -53,7 +53,7 @@ export default function Me() {
     setPermissionPending(true);
     try {
       const granted = await enableNotifications();
-      if (granted) { updateSettings({ ...data.settings, notificationsEnabled: true }); notify(data.demo ? '提醒已开启；示例日程不发送通知，真实任务会在开始时提醒。' : '日程提醒已开启。'); }
+      if (granted) { updateSettings({ ...data.settings, notificationsEnabled: true }); notify(data.demo ? '提醒已开启；示例日程不发送通知，真实事件会在开始和结束时提醒。' : '日程提醒已开启。'); }
       else notify('尚未获得通知权限，可以在手机系统设置中允许留白发送通知。');
     } catch { notify('暂时无法开启提醒，请确认当前手机版本支持通知并检查系统权限。'); }
     finally { setPermissionPending(false); }
@@ -95,7 +95,7 @@ export default function Me() {
       <Button title="保存我的节奏" icon="check" onPress={save} style={{ alignSelf: 'flex-start', marginTop: 20 }} />
     </Card>
     <Card style={{ marginBottom: 20 }}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}><Icon name="book-open" color={c.purple} /><View style={{ flex: 1 }}><Label style={{ fontWeight: '600', fontSize: 14 }}>课表导入</Label><Label muted style={{ fontSize: 11, marginTop: 5 }}>哈尔滨工业大学（深圳）</Label></View><Button title="导入课表" icon="download" variant="secondary" small onPress={() => router.navigate('/course-import')} /></View></Card>
-    <Card style={{ marginBottom: 20 }}><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 15 }}><View style={{ flex: 1 }}><Label style={{ fontWeight: '600', fontSize: 14 }}>日程提醒</Label><Label muted style={{ fontSize: 11, marginTop: 8 }}>{Platform.OS === 'web' ? '系统提醒需要在手机端使用，网页预览不发送通知。' : '在任务开始或顺手小事设定的时刻发送通知。示例不发送提醒。'}</Label></View><Button title={permissionPending ? '正在开启…' : data.settings.notificationsEnabled ? '关闭提醒' : '开启提醒'} icon="bell" variant="secondary" small disabled={permissionPending || Platform.OS === 'web'} onPress={toggleNotifications} /></View></Card>
+    <Card style={{ marginBottom: 20 }}><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 15 }}><View style={{ flex: 1 }}><Label style={{ fontWeight: '600', fontSize: 14 }}>日程提醒</Label><Label muted style={{ fontSize: 11, marginTop: 8 }}>{Platform.OS === 'web' ? '系统提醒需要在手机端使用，网页预览不发送通知。' : '事件开始时提醒，结束时可在通知中标记完成或进入救场；顺手小事按设定时刻提醒。示例不发送通知。'}</Label></View><Button title={permissionPending ? '正在开启…' : data.settings.notificationsEnabled ? '关闭提醒' : '开启提醒'} icon="bell" variant="secondary" small disabled={permissionPending || Platform.OS === 'web'} onPress={toggleNotifications} /></View></Card>
     <Card style={{ marginBottom: 20 }}><Label style={{ fontWeight: '600', fontSize: 14 }}>收集箱空闲提醒</Label>
       <Label muted style={{ fontSize: 11, marginTop: 8 }}>有较长连续空档时，问问要不要做一件待办。</Label>
       <Button title={permissionPending ? '正在开启…' : data.settings.inboxRemindersEnabled ? '关闭空闲提醒' : '开启空闲提醒'} icon="bell" variant="secondary" small disabled={permissionPending || Platform.OS === 'web'} onPress={toggleInboxReminders} style={{ alignSelf: 'flex-start', marginTop: 14 }} />

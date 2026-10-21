@@ -108,7 +108,7 @@ test('v7 users start at revised tasks while retaining earlier completion lessons
   const previous = { ...freshGuideProgress(), revision: 7, completedRevision: 7, deferredRevision: 7 };
   assert.equal(shouldShowGuide(previous), true);
   assert.equal(guideStartStep(previous), 'tasks');
-  assert.equal(GUIDE_STEPS.find(step => step.id === 'completion')!.introduced, 9);
+  assert.equal(GUIDE_STEPS.find(step => step.id === 'completion')!.introduced, 14);
   assert.equal(visitGuideStep(previous, 'completion').completedRevision, 7);
 });
 

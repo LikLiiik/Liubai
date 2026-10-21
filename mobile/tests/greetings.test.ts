@@ -53,8 +53,8 @@ test('storage failures do not block greetings or stop subsequent rotation', asyn
   assert.equal(attempts, 2);
 });
 
-test('v12 guide completion is preserved while returning users start at the new greeting demonstration', () => {
+test('v12 guide completion is preserved while newer lessons and the greeting demonstration remain available', () => {
   const previous = { ...freshGuideProgress(), revision: 12, completedRevision: 12, deferredRevision: 12 };
-  assert.equal(guideStartStep(previous), 'preferences');
+  assert.equal(guideStartStep(previous), 'completion');
   assert.equal(visitGuideStep(previous, 'preferences').completedRevision, 12);
 });

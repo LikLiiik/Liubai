@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { createPlan } from '../scheduler';
-import type { Category, Task } from '../types';
+import type { AppData, Category, PlanMode, Task } from '../types';
 import { clock, taskPosition, uid } from '../utils';
 import { colors as c } from '../theme';
 import { Badge, Button, FieldTitle, Icon, Label } from './ui';
@@ -15,7 +15,40 @@ import { createAdvancePlan, setTaskCompletion } from '../completion';
 import { previewCompletionUndo } from '../completionUndo';
 import { NicknameCard } from './NicknameCard';
 import { chooseGreeting, greetingChoices, greetingPeriod, personalizeGreeting } from '../greetings';
+import { END_ACTIONS, applyEndCompletions, endReminderFor } from '../taskEndReminders';
+import { createEventRescuePlan } from '../eventRescue';
 export { WeekGuideLesson } from './GuideWeekLesson';
+
+export function EndNotificationGuideLesson() {
+  const initial = useMemo(() => ({ ...createEmpty({ dayStart: 540, dayEnd: 1080, buffer: 10 }), tasks: [
+    { id: 'guide-ended', title: '整理资料', duration: 60, start: 840, date: '2026-10-21', notes: '',
+      category: 'work' as const, priority: 'normal' as const, important: false, fixed: false, completed: false, deadline: null, postponed: 0 },
+  ] }), []);
+  const [example, setExample] = useState<AppData>(initial);
+  const [stage, setStage] = useState<'notification' | 'complete' | 'rescue'>('notification');
+  const [mode, setMode] = useState<PlanMode>('boundary');
+  const plan = createEventRescuePlan(example.tasks, example.settings, { reason: 'overrun', minutes: 30, mode,
+    now: 900, date: '2026-10-21' }, 'guide-ended', 'guide-continuation');
+  return <View style={{ marginTop: 18, gap: 12 }}>
+    <Badge title="结束通知演示 · 不发送真实通知" tone="neutral" />
+    <View style={{ borderWidth: 1, borderColor: c.border, borderRadius: 12, padding: 16, gap: 10 }}>
+      <Label style={{ fontWeight: '600' }}>这件事完成了吗？</Label><Label muted style={{ fontSize: 12 }}>「整理资料」已到结束时间 · 15:00</Label>
+      <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>{END_ACTIONS.map((action, index) =>
+        <Button key={action.identifier} title={`演示：${action.buttonTitle}`} disabled={stage !== 'notification'} small variant={index ? 'secondary' : 'primary'} onPress={() => {
+          if (index) setStage('rescue');
+          else { setExample(applyEndCompletions(initial, [{ ...endReminderFor(initial.tasks[0])!, completedAt: '2026-10-21T15:00:00' }])); setStage('complete'); }
+        }} />)}</View>
+    </View>
+    {stage === 'complete' && <Label accessibilityLiveRegion="polite" style={{ color: c.green }}>整理资料 · 已完成，后续安排保持不变。</Label>}
+    {stage === 'rescue' && <View style={{ gap: 10 }}><Label style={{ fontWeight: '600' }}>整理资料 · 事件救场</Label>
+      <Label muted style={{ fontSize: 12 }}>还需 30 分钟</Label><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{([
+        ['balanced', '保截止时间'], ['boundary', '保结束时间'], ['focus', '保今日重点'],
+      ] as const).map(([key, title]) => <Button key={key} title={`演示：${title}`} small variant={mode === key ? 'primary' : 'secondary'} onPress={() => setMode(key)} />)}</View>
+      <Label style={{ fontSize: 12 }}>预览：{plan.changes.find(change => change.taskId === 'guide-ended')?.to}</Label>
+      <Label muted style={{ fontSize: 11 }}>正式救场需确认方案后才调整日程。</Label></View>}
+    {stage !== 'notification' && <Button title="重试结束通知演示" small variant="ghost" onPress={() => { setExample(initial); setStage('notification'); }} />}
+  </View>;
+}
 
 export function NicknameGuideLesson() {
   const [nickname, setNickname] = useState('小白');

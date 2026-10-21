@@ -64,6 +64,7 @@ export interface AppData {
   settings: Settings;
   history: PlanHistory[];
   demo: boolean;
+  notificationReceipts?: string[];
 }
 
 export type RescueReason = 'interruption' | 'overrun' | 'lowEnergy' | 'rebalance';

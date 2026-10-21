@@ -6,7 +6,7 @@ import { colors as c } from '../theme';
 import { Badge, Button, Dialog, Icon, Label } from './ui';
 import { GuidePermissions } from './GuidePermissions';
 import { useRouter } from 'expo-router';
-import { CategoryGuideLesson, CompletionGuideLesson, NicknameGuideLesson, QuickGuideLesson, RescueGuideLesson, TimeGuideLesson, WeekGuideLesson } from './GuideLessons';
+import { CategoryGuideLesson, CompletionGuideLesson, EndNotificationGuideLesson, NicknameGuideLesson, QuickGuideLesson, RescueGuideLesson, TimeGuideLesson, WeekGuideLesson } from './GuideLessons';
 
 export function OnboardingGuide({ blocked = false }: { blocked?: boolean }) {
   const guide = useGuide();
@@ -37,7 +37,7 @@ export function OnboardingGuide({ blocked = false }: { blocked?: boolean }) {
     {step.id === 'welcome' && <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 22 }}><Badge title="记下来" tone="purple" /><Badge title="安排好" tone="green" /><Badge title="随时调整" tone="orange" /></View>}
     {visible && step.id === 'tasks' && <TimeGuideLesson />}
     {visible && step.id === 'quick' && <QuickGuideLesson />}
-    {visible && step.id === 'completion' && <CompletionGuideLesson />}
+    {visible && step.id === 'completion' && <><CompletionGuideLesson /><EndNotificationGuideLesson /></>}
     {visible && step.id === 'week' && <WeekGuideLesson onDraggingChange={setLessonDragging} />}
     {visible && step.id === 'rescue' && <RescueGuideLesson />}
     {visible && step.id === 'explore' && <CategoryGuideLesson />}

@@ -57,7 +57,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         {path !== '/week' && <View style={[styles.topbar, { paddingHorizontal: wide ? 40 : 22 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
             {exploreChild ? <><Pressable accessibilityRole="link" accessibilityLabel="返回探索" onPress={() => router.navigate('/explore')} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44 }}><Icon name="arrow-left" size={15} color={c.purple} /><Label style={{ fontSize: 11, color: c.purple }}>探索</Label></Pressable><Icon name="chevron-right" size={12} color={c.faint} /><Label style={{ fontSize: 11 }}>{exploreChild}</Label></>
-              : <>{!wide && <BrandMark small />}<Label muted style={{ fontSize: 11 }}>{wide ? '我的空间' : '留白'}</Label><Icon name="chevron-right" size={12} color={c.faint} /><Label style={{ fontSize: 11 }}>{current.title}</Label></>}
+              : <>{!wide && <BrandMark small />}<Label muted style={{ fontSize: 11 }}>{wide ? '我的空间' : '留白'}</Label><Icon name="chevron-right" size={12} color={c.faint} /><Label style={{ fontSize: 11 }}>{path === '/rescue' ? '事件救场' : current.title}</Label></>}
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}><Icon name={data.demo ? 'eye' : 'hard-drive'} size={13} color={c.green} /><Label muted style={{ fontSize: 10 }}>{data.demo ? '示例体验' : '本地模式'}{!wide && saveStatus === 'error' ? ' · 保存失败' : ''}</Label></View>
         </View>}

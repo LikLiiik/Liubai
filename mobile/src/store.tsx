@@ -4,7 +4,8 @@ import type { AppData, PlanResult, Settings, Task } from './types';
 import { storage } from './storage';
 import { createEmpty, personalData } from './seed';
 import { dateKey, uid } from './utils';
-import { syncNotifications } from './notifications';
+import { syncNotifications, pendingEndCompletions, acknowledgeEndCompletions } from './notifications';
+import { applyEndCompletions, endResponseTarget, type EndReminder } from './taskEndReminders';
 import { planningContext, validSettings } from './time';
 import { applyPlanToData } from './planApply';
 import { addCategoryToData, knownCategory, type CategoryAddResult } from './categories';
@@ -39,6 +40,8 @@ type Store = {
   dismissCompletionOffer: () => void;
   reset: () => void;
   reload: () => void;
+  refreshEndCompletions: () => Promise<void>;
+  isCurrentEndReminder: (event: EndReminder) => boolean;
 };
 
 const Context = createContext<Store | null>(null);
@@ -47,6 +50,7 @@ function isAppData(value: unknown): value is AppData {
   if (!value || typeof value !== 'object') return false;
   const data = value as AppData;
   return data.version === 1 && typeof data.demo === 'boolean' && Array.isArray(data.tasks) && Array.isArray(data.history)
+    && (data.notificationReceipts === undefined || Array.isArray(data.notificationReceipts) && data.notificationReceipts.every(id => typeof id === 'string'))
     && !!data.settings && validSettings(data.settings)
     && data.tasks.every(task => typeof task.id === 'string' && typeof task.title === 'string'
       && validTaskTiming(task)
@@ -91,12 +95,13 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
   const writeQueue = useRef(Promise.resolve());
   const notify = useCallback((message: string) => setToast(message), []);
   const readData = useCallback(() => {
-    return storage.get().then(raw => {
+    return storage.get().then(async raw => {
       if (!raw) commit(() => createEmpty());
       else {
         const parsed: unknown = JSON.parse(raw);
         if (!isAppData(parsed)) throw new Error('本地数据格式无法识别');
-        commit(() => personalData(parsed));
+        const records = await pendingEndCompletions();
+        commit(() => applyEndCompletions(personalData(parsed), records));
       }
       setLoadError(null);
     }).catch(() => setLoadError('暂时无法读取本地数据。你可以重试，原有数据不会被覆盖。')).finally(() => setLoading(false));
@@ -121,6 +126,8 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
       await storage.set(JSON.stringify(data));
       setSaveStatus('saved');
       if (Platform.OS !== 'web') {
+        try { await acknowledgeEndCompletions(data); }
+        catch { notify('完成状态已保存，通知记录同步将在下次保存时重试。'); }
         try { await syncNotifications(data); }
         catch { notify('日程已保存，但系统提醒更新失败，请检查通知权限。'); }
       }
@@ -139,6 +146,17 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
   const mutateTasks = useCallback((update: (tasks: Task[]) => Task[]) => {
     return commit(previous => { const tasks = update(previous.tasks); return tasks === previous.tasks ? previous : { ...previous, tasks }; });
   }, [commit]);
+  const refreshEndCompletions = useCallback(async () => {
+    const records = await pendingEndCompletions();
+    let completed = false;
+    const changed = commit(previous => {
+      const next = applyEndCompletions(previous, records);
+      completed = next.tasks.some(task => task.completed && previous.tasks.some(before => before.id === task.id && !before.completed));
+      return next;
+    });
+    if (changed) notify(completed ? '已标记完成。' : '此事件已变更，旧提醒已失效。');
+  }, [commit, notify]);
+  const isCurrentEndReminder = useCallback((event: EndReminder) => !!endResponseTarget(currentData.current, event, new Date()), []);
   const setCompleted = useCallback((id: string, completed: boolean, consentKey?: string) => {
     const moment = new Date();
     let offer = false;
@@ -236,7 +254,7 @@ export function PlanningProvider({ children }: { children: React.ReactNode }) {
   const planning = planningContext(today, now, data.settings);
   return <Context.Provider value={{ data, loading, loadError, saveStatus, today, now,
     planningDate: planning.date, planningNow: planning.now, toast, notify, mutateTasks, applyPlan,
-    undoPlan, updateSettings, setNickname, toggleImportant, addCategory, setCompleted, completionOffer, completionRestore, completionUndo, undoCompletion, dismissCompletionOffer, reset, reload }}>{children}</Context.Provider>;
+    undoPlan, updateSettings, setNickname, toggleImportant, addCategory, setCompleted, completionOffer, completionRestore, completionUndo, undoCompletion, dismissCompletionOffer, reset, reload, refreshEndCompletions, isCurrentEndReminder }}>{children}</Context.Provider>;
 }
 
 export function usePlanning() {

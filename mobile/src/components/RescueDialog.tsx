@@ -3,7 +3,8 @@ import { Pressable, useWindowDimensions, View } from 'react-native';
 import { colors as c } from '../theme';
 import { usePlanning } from '../store';
 import { activeInterruption, createPlan } from '../scheduler';
-import { clock } from '../utils';
+import { clock, uid } from '../utils';
+import { createEventRescuePlan } from '../eventRescue';
 import { inPlanningDay } from '../time';
 import { TimeField } from './TimeField';
 import { durationTime, parseDuration } from '../timePicker';
@@ -16,7 +17,7 @@ const modes: { key: PlanMode; title: string; desc: string; icon: IconName }[] = 
   { key: 'boundary', title: '保结束时间', desc: '不加时，放不下的移到明天', icon: 'coffee' },
   { key: 'focus', title: '保今日重点', desc: '不加时，优先重点与硬截止', icon: 'star' },
 ];
-export function RescueDialog({ visible, initialReason = 'interruption', onClose }: { visible: boolean; initialReason?: RescueReason; onClose: () => void }) {
+export function RescueDialog({ visible, initialReason = 'interruption', initialTaskId, onClose }: { visible: boolean; initialReason?: RescueReason; initialTaskId?: string; onClose: () => void }) {
   // Remount this dialog when opening so each preview starts from current data.
   const { data, planningDate: today, planningNow: now, applyPlan } = usePlanning();
   const { width } = useWindowDimensions();
@@ -24,22 +25,29 @@ export function RescueDialog({ visible, initialReason = 'interruption', onClose 
   const [duration, setDuration] = useState(durationTime(30));
   const minutes = reason === 'interruption' || reason === 'overrun' ? parseDuration(duration) ?? 0 : 30;
   const [mode, setMode] = useState<PlanMode>('boundary');
+  const [continuationId] = useState(() => uid());
+  const target = initialTaskId ? data.tasks.find(task => task.id === initialTaskId) : undefined;
   const active = activeInterruption(data.tasks, today, now);
   const candidates = data.tasks.filter(task => !isQuick(task) && inPlanningDay(task, today, data.settings) && !task.completed && !task.fixed);
-  const [taskId, setTaskId] = useState(candidates[0]?.id);
-  const plan = useMemo(() => createPlan(data.tasks, data.settings, { reason, minutes, mode, taskId, now, date: today }), [data, reason, minutes, mode, taskId, now, today]);
+  const [taskId, setTaskId] = useState(initialTaskId ?? candidates[0]?.id);
+  const plan = useMemo(() => initialTaskId ? createEventRescuePlan(data.tasks, data.settings,
+    { reason: 'overrun', minutes, mode, taskId: initialTaskId, now, date: today }, initialTaskId, continuationId)
+    : createPlan(data.tasks, data.settings, { reason, minutes, mode, taskId, now, date: today }), [data, reason, minutes, mode, taskId, now, today, initialTaskId, continuationId]);
   return <Dialog visible={visible} wide title="计划变了，我们重新安排" subtitle="固定事项保持原时间。每一项取舍，都先让你看见。" onClose={onClose}
     footer={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, justifyContent: 'space-between', flexWrap: 'wrap' }}>
       <View style={{ flex: 1, minWidth: 150 }}><Label style={{ fontSize: 12 }}>{plan.valid ? `${plan.deferred} 项移到明天 · ${clock(plan.finish)} 结束` : '存在需要处理的冲突'}</Label><Label muted style={{ fontSize: 10 }}>套用后可在「回顾」撤销</Label></View>
       <Button title="先不调整" variant="ghost" small onPress={onClose} /><Button title="就按这个安排" icon="check" disabled={!plan.valid || !plan.changes.length} onPress={() => { if (applyPlan(plan, reason === 'interruption' ? `${active ? '续加临时事项' : '临时有事'} ${minutes} 分钟` : reason === 'overrun' ? `任务还需 ${minutes} 分钟` : reason === 'rebalance' ? '重新安排今天' : '今天放慢一点')) onClose(); }} />
     </View>}>
-    <FieldTitle>发生了什么</FieldTitle><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+    {initialTaskId ? <View style={{ backgroundColor: c.lavender, padding: 14, borderRadius: 12, gap: 7 }}>
+      <Label style={{ fontWeight: '600' }}>{target?.title ?? '事件已移除'}</Label>
+      <Label muted style={{ fontSize: 11 }}>{target?.fixed ? '固定事件保留原记录，未完成部分作为后续任务安排。' : '为这件事安排剩余时间，并调整后续日程。'}</Label>
+    </View> : <><FieldTitle>发生了什么</FieldTitle><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
       <Chip title="临时有事" icon="zap" selected={reason === 'interruption'} onPress={() => setReason('interruption')} />
       <Chip title="任务还没做完" icon="clock" selected={reason === 'overrun'} onPress={() => setReason('overrun')} />
       <Chip title="今天有点累" icon="battery" selected={reason === 'lowEnergy'} onPress={() => setReason('lowEnergy')} />
       <Chip title="只重新安排" icon="shuffle" selected={reason === 'rebalance'} onPress={() => setReason('rebalance')} />
-    </View>
-    {reason === 'overrun' && <><FieldTitle>哪件事还需要时间</FieldTitle><View style={{ gap: 7 }}>{candidates.length ? candidates.map(task => <Chip key={task.id} title={task.title} selected={taskId === task.id} onPress={() => setTaskId(task.id)} />) : <Label muted>今天没有尚未完成的灵活任务。</Label>}</View></>}
+    </View></>}
+    {reason === 'overrun' && !initialTaskId && <><FieldTitle>哪件事还需要时间</FieldTitle><View style={{ gap: 7 }}>{candidates.length ? candidates.map(task => <Chip key={task.id} title={task.title} selected={taskId === task.id} onPress={() => setTaskId(task.id)} />) : <Label muted>今天没有尚未完成的灵活任务。</Label>}</View></>}
     {reason === 'interruption' || reason === 'overrun' ? <><FieldTitle>{reason === 'overrun' ? '从现在起，还需要多久？' : active ? '当前临时事项，再增加多久？' : `从 ${clock(now)} 开始，占用多久？`}</FieldTitle><View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>{[15, 30, 60, 90].map(value => <Chip key={value} title={`${value} 分钟`} selected={minutes === value} onPress={() => setDuration(durationTime(value))} />)}</View>
       <View style={{ marginTop: 10 }}><TimeField label="救场时长" value={duration} onChangeText={setDuration} mode="duration" min={5} max={720} fallback={30} /></View>
       {reason === 'overrun' && <Label muted style={{ fontSize: 11, marginTop: 8 }}>按你确认的剩余时长重新安排，不把经过的时间自动视为已完成。</Label>}</>
