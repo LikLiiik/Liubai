@@ -1,0 +1,32 @@
+{
+  "name": "留白",
+  "version": "0.4.1",
+  "androidVersionCode": 8,
+  "package": "app.liubai.planner",
+  "sizeBytes": 99875635,
+  "sha256": "5643740844cb3ba52d9fea45a979a0eb64d81cf23ff8e389bfd1247df8dc4177",
+  "signingCertificateSha256": [
+    "fd79101f01e41c48c8370ded86dd4e420eee63f22cd5fdc3d94ce9f0be14cf9e"
+  ],
+  "checks": {
+    "archiveCrc": "passed",
+    "package": "passed",
+    "embeddedBundle": "passed",
+    "arm64Libraries": "passed",
+    "schoolReaderBundle": "passed",
+    "schoolNetworkResource": "passed",
+    "nativeWebView": "passed",
+    "signature": "passed",
+    "signingContinuity": "passed"
+  },
+  "file": "liubai-0.4.1-android.apk",
+  "buildId": "f57b771a-91dd-440c-b8e2-c381f018f730",
+  "buildUrl": "https://expo.dev/accounts/likliiik/projects/liubai-planner/builds/f57b771a-91dd-440c-b8e2-c381f018f730",
+  "buildDownloadUrl": "https://expo.dev/artifacts/eas/FbGBZiJT1zaQcJ1cyNcXMVCvEsE125yRB3etqFmYVoY.apk",
+  "downloadUrl": "https://github.com/LikLiiik/Liubai/releases/download/v0.4.1/liubai-0.4.1-android.apk",
+  "sourceCommit": "03663e606993ad84a84dc79beeb236f48230d1c4",
+  "notes": "· 重叠事件合并计算时间占用和连续空档，避免重复扣减。\n· 修正带「实验」前缀的课表课程名；时间未识别的课程保留原文导入收集箱，之后核对安排。\n· 周览重叠并排卡片隐藏星标，普通卡片仍可直接设置重点。\n· 添加任务可选自动安排或指定日期和开始时间，是否固定单独选择；手动重叠仍需确认。\n· 首页新增 25 组按时段变化的昵称问候；重新进入首页或返回前台时更换，同一时段相邻不重复。\n· 新手指引更新至第 13 版，新增指定时间与问候切换演示，保留原有完成记录。",
+  "deviceTesting": "pending",
+  "schoolLiveLogin": "pending",
+  "schoolLiveCourseQuery": "pending"
+}
