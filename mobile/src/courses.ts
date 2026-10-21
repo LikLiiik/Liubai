@@ -211,11 +211,14 @@ export function previewCourseImport(original: Task[], incoming: Task[], semester
   const conflictSet = new Set<string>();
   for (const task of result.tasks.filter(task => changedIds.has(task.id))) {
     const candidates = calendarSegments(task).flatMap(segment => tasksByDate.get(segment.date) ?? []);
-    const collision = candidates.find(other => other.id !== task.id && overlaps(task, other));
-    if (collision) {
+    const collisions = [...new Map(candidates.filter(other => other.id !== task.id && overlaps(task, other)).map(other => [other.id, other])).values()];
+    if (collisions.length) {
       const key = task.courseImport!.key;
-      if (!conflictSet.has(key)) result.conflicts.push({ key, message: `${task.date} ${clock(task.start!)}「${task.title}」与「${collision.title}」冲突` });
-      conflictSet.add(key); result.valid = false;
+      const titles = collisions.slice(0, 3).map(other => `「${other.title}」`).join('、');
+      if (!conflictSet.has(key)) result.conflicts.push({ key, message: `${task.date} ${clock(task.start!)}「${task.title}」与${titles}${collisions.length > 3 ? `等 ${collisions.length} 项` : ''}时间重叠` });
+      // Import is an explicit manual placement. Keep the warning without moving,
+      // dropping or granting the automatic scheduler permission to overlap tasks.
+      conflictSet.add(key);
     }
   }
   for (const task of original.filter(task => removals.has(task.id))) result.changes.push({ taskId: task.id, title: task.title, from: taskPosition(task, today), to: '移除', reason: '同步本学期课表' });

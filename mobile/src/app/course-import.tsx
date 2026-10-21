@@ -104,9 +104,9 @@ export default function CourseImport() {
             <Label muted style={{ fontSize: 11, marginTop: 10 }}>{mode === 'merge' ? '添加新课程、更新已有课程，不删除原有课程。' : '同时移除本学期不再导入的课程，保留手动修改和完成记录。'}</Label>
             {preview && <><Label style={{ marginTop: 17, fontSize: 13 }}>新增 {preview.added} · 更新 {preview.updated} · 移除 {preview.removed} · 重复 {preview.unchanged} · 保留 {preview.protected}</Label>
               {preview.warnings.map((warning, index) => <Label key={index} muted style={{ fontSize: 11, marginTop: 6 }}>{warning}</Label>)}
-              {preview.conflicts.slice(0, 8).map(conflict => <Label accessibilityRole="alert" key={conflict.key} style={{ color: c.red, fontSize: 11, marginTop: 7 }}>{conflict.message}</Label>)}
-              {preview.conflicts.length > 8 && <Label muted style={{ fontSize: 11 }}>另有 {preview.conflicts.length - 8} 项冲突</Label>}
-              {!!preview.conflicts.length && <Label muted style={{ fontSize: 11, marginTop: 8 }}>请取消冲突课程或先调整原有日程后重试。</Label>}
+              {preview.conflicts.slice(0, 8).map(conflict => <Label key={conflict.key} style={{ color: c.orange, fontSize: 11, marginTop: 7 }}>{conflict.message}</Label>)}
+              {preview.conflicts.length > 8 && <Label muted style={{ fontSize: 11 }}>另有 {preview.conflicts.length - 8} 项课程安排存在重叠</Label>}
+              {!!preview.conflicts.length && <Label muted style={{ fontSize: 11, marginTop: 8 }}>重叠课程可一并导入，今天和周览将保留并列显示。</Label>}
               {preview.valid && !preview.changes.length && <Label muted style={{ fontSize: 12, marginTop: 10 }}>没有需要导入的变更。</Label>}
               <View style={{ marginTop: 15, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 12 }}><Label style={{ fontWeight: '600', fontSize: 12 }}>日程预览</Label>{preview.changes.slice(0, 8).map(change => <Label key={change.taskId} muted style={{ fontSize: 11, marginTop: 6 }}>{change.title} · {change.to}</Label>)}{preview.changes.length > 8 && <Label muted style={{ fontSize: 11, marginTop: 6 }}>共 {preview.changes.length} 项变更</Label>}</View>
             </>}
@@ -119,6 +119,6 @@ export default function CourseImport() {
     </View>
   </KeyboardFormScrollView>
     <SchoolLogin visible={login} request={{ year, term }} onRead={receive} onClose={() => setLogin(false)} />
-    <Confirm visible={confirmImport} title="导入本学期课表？" description={`新增 ${preview?.added ?? 0} 项，更新 ${preview?.updated ?? 0} 项，移除 ${preview?.removed ?? 0} 项。时间已识别的课程设为固定事项，其余放入收集箱。可在回顾中撤销。`} action="导入课表" onClose={() => setConfirmImport(false)} onConfirm={importNow} />
+    <Confirm visible={confirmImport} title="导入本学期课表？" description={`新增 ${preview?.added ?? 0} 项，更新 ${preview?.updated ?? 0} 项，移除 ${preview?.removed ?? 0} 项。${preview?.conflicts.length ? `其中 ${preview.conflicts.length} 项课程安排与其他事件重叠，将按原时间一并导入。` : ''}时间已识别的课程设为固定事项，其余放入收集箱。可在回顾中撤销。`} action="导入课表" onClose={() => setConfirmImport(false)} onConfirm={importNow} />
   </>;
 }

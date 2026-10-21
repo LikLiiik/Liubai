@@ -4,8 +4,13 @@ import vm from 'node:vm';
 import { courseFingerprint, expandCourses, parseHitszCourses, parseNumbers, previewCourseImport, validSemester } from '../src/courses.ts';
 import { buildSchoolReadScript, collectHitsz, sampleSchoolFetcher, SAMPLE_ROWS, schoolUrlAllowed } from '../src/hitsz.ts';
 import { createPlan } from '../src/scheduler.ts';
-import { moveTaskTo } from '../src/week.ts';
+import { applyPlanToData } from '../src/planApply.ts';
+import { createEmpty } from '../src/seed.ts';
+import { dayBudget } from '../src/budget.ts';
+import { overlaps } from '../src/time.ts';
+import { layoutDay, moveTaskTo } from '../src/week.ts';
 import type { Task } from '../src/types.ts';
+import { freshGuideProgress, guideStartStep, visitGuideStep } from '../src/guide.ts';
 
 const semester = { year: '2026-2027', term: '1', monday: '2026-08-31' };
 const semesterKey = '2026-2027/1';
@@ -204,15 +209,17 @@ test('merge keeps missing classes; semester sync removes only unchanged imported
   assert.ok(sync.tasks.some(task => task.id === tasks[0].id));
 });
 
-test('conflicts block imports with existing tasks and with another incoming course', () => {
+test('overlaps with existing tasks, incoming courses and overnight events are importable without moving either event', () => {
   const tasks = getTasks();
   const busy: Task = { ...tasks[0], id: 'existing', title: '已有预约', courseImport: undefined };
   const result = previewCourseImport([busy], tasks, semesterKey, 'merge', semester.monday);
-  assert.equal(result.valid, false); assert.ok(result.conflicts[0].message.includes('已有预约'));
+  assert.equal(result.valid, true); assert.ok(result.conflicts[0].message.includes('已有预约'));
+  assert.deepEqual(result.tasks.find(task => task.id === busy.id), busy);
+  assert.deepEqual(result.tasks.filter(task => task.id !== busy.id), tasks);
   const duplicateSlot = { ...tasks[0], id: 'different', title: '另一课程', courseImport: { ...tasks[0].courseImport!, key: 'different' } };
-  assert.equal(previewCourseImport([], [...tasks, duplicateSlot], semesterKey, 'merge', semester.monday).valid, false);
+  assert.equal(previewCourseImport([], [...tasks, duplicateSlot], semesterKey, 'merge', semester.monday).valid, true);
   const carry: Task = { ...busy, id: 'carry', date: '2026-08-30', start: 1410, duration: 600 };
-  assert.equal(previewCourseImport([carry], tasks, semesterKey, 'merge', semester.monday).valid, false);
+  assert.equal(previewCourseImport([carry], tasks, semesterKey, 'merge', semester.monday).valid, true);
 });
 
 test('imported lessons are protected by existing scheduling and fixed-task drag confirmation', () => {
@@ -221,6 +228,79 @@ test('imported lessons are protected by existing scheduling and fixed-task drag 
   assert.deepEqual(plan.tasks, tasks);
   const moved = moveTaskTo(tasks, tasks[0].id, { date: '2026-09-01', start: 510 }, { dayStart: 510, dayEnd: 1080, buffer: 10 }, semester.monday);
   assert.equal(moved.ok, false);
+});
+
+test('confirmed overlapping courses apply together, render in separate lanes, count shared time once and remain fixed during scheduling', () => {
+  const first = getTasks()[0];
+  const second = { ...first, id: 'parallel-course', title: '并行实验', courseImport: { ...first.courseImport!, key: 'parallel-course' } };
+  second.courseImport.fingerprint = courseFingerprint(second);
+  const incoming = [first, second];
+  const initial = createEmpty({ dayStart: 480, dayEnd: 1080, buffer: 0 });
+  const before = JSON.stringify(initial);
+  const preview = previewCourseImport(initial.tasks, incoming, semesterKey, 'merge', semester.monday);
+  const result = applyPlanToData(initial, preview, { id: 'import', date: semester.monday, createdAt: '2026-08-31T00:00:00', title: '导入课表' });
+  assert.equal(result.error, undefined);
+  assert.deepEqual(result.data.tasks, incoming);
+  assert.deepEqual(result.data.history[0].snapshot, []);
+  assert.equal(layoutDay(result.data.tasks).every(item => item.lanes === 2), true);
+  assert.equal(dayBudget(result.data.tasks, initial.settings, semester.monday, 480).occupied, first.duration);
+  const pending: Task = { ...first, id: 'flexible', title: '新任务', start: null, fixed: false, duration: 60, courseImport: undefined };
+  const plan = createPlan([...result.data.tasks, pending], initial.settings, { date: semester.monday, now: 480, minutes: 30, reason: 'rebalance', mode: 'boundary' });
+  assert.equal(plan.valid, true);
+  const scheduled = plan.tasks.find(task => task.id === 'flexible')!;
+  assert.notEqual(scheduled.start, null);
+  assert.ok(incoming.every(task => !overlaps(task, scheduled)));
+  assert.deepEqual(plan.tasks.filter(task => task.fixed), incoming);
+  assert.equal(previewCourseImport(result.data.tasks, incoming, semesterKey, 'merge', semester.monday).changes.length, 0);
+  assert.equal(JSON.stringify(initial), before);
+});
+
+test('overlapping updates still respect manual edits and sync removals without shifting unrelated events', () => {
+  const first = getTasks()[0];
+  const busy: Task = { ...first, id: 'appointment', title: '个人预约', courseImport: undefined };
+  const updated = { ...first, notes: '新教室 T2601', courseImport: { ...first.courseImport! } };
+  updated.courseImport.fingerprint = courseFingerprint(updated);
+  const result = previewCourseImport([first, busy], [updated], semesterKey, 'sync', semester.monday);
+  assert.equal(result.valid, true); assert.equal(result.updated, 1);
+  assert.equal(result.conflicts.length, 1); assert.deepEqual(result.tasks.find(task => task.id === busy.id), busy);
+  assert.equal(result.tasks.find(task => task.id === first.id)!.notes, updated.notes);
+  const edited = { ...first, start: first.start! + 15 };
+  const protectedResult = previewCourseImport([edited, busy], [updated], semesterKey, 'sync', semester.monday);
+  assert.equal(protectedResult.protected, 1); assert.deepEqual(protectedResult.tasks, [edited, busy]);
+  const removed = previewCourseImport(result.tasks, [], semesterKey, 'sync', semester.monday);
+  assert.deepEqual(removed.tasks, [busy]);
+});
+
+test('overlap permission does not bypass duplicate identifiers or stale preview protection', () => {
+  const course = getTasks()[0];
+  const existing: Task = { ...course, title: '同标识的个人任务', courseImport: undefined };
+  const invalid = previewCourseImport([existing], [course], semesterKey, 'merge', semester.monday);
+  assert.equal(invalid.valid, false); assert.equal(invalid.added, 0);
+  assert.ok(invalid.warnings.some(warning => warning.includes('重复课程标识')));
+  const initial = createEmpty();
+  const preview = previewCourseImport(initial.tasks, [course], semesterKey, 'merge', semester.monday);
+  const changed = { ...initial, tasks: [existing] };
+  const result = applyPlanToData(changed, preview, { id: 'stale', date: semester.monday, createdAt: '2026-08-31T00:00:00', title: '导入课表' });
+  assert.ok(result.error); assert.equal(result.data, changed);
+});
+
+test('overnight overlap reports every counterpart once and ignores point reminders', () => {
+  const base = getTasks()[0];
+  const course: Task = { ...base, start: 1410, duration: 120 };
+  const carry: Task = { ...course, id: 'overnight', title: '跨夜会议', courseImport: undefined };
+  const second: Task = { ...carry, id: 'other', title: '另一预约', start: 1420 };
+  const point: Task = { ...carry, id: 'quick', title: '小事', kind: 'quick', duration: 0 };
+  const preview = previewCourseImport([carry, second, point], [course], semesterKey, 'merge', semester.monday);
+  assert.equal(preview.valid, true); assert.equal(preview.conflicts.length, 1);
+  const message = preview.conflicts[0].message;
+  assert.equal(message.split('跨夜会议').length - 1, 1);
+  assert.ok(message.includes('另一预约')); assert.ok(!message.includes('小事'));
+});
+
+test('v16 guide completion is preserved when introducing overlapping course imports', () => {
+  const previous = { ...freshGuideProgress(), revision: 16, completedRevision: 16, deferredRevision: 16 };
+  assert.equal(guideStartStep(previous), 'preferences');
+  assert.equal(visitGuideStep(previous, 'preferences').completedRevision, 16);
 });
 
 test('sample and real course identifiers cannot replace one another', () => {

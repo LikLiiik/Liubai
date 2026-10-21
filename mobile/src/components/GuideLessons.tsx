@@ -18,8 +18,40 @@ import { NicknameCard } from './NicknameCard';
 import { chooseGreeting, greetingChoices, greetingPeriod, personalizeGreeting } from '../greetings';
 import { END_ACTIONS, applyEndCompletions, endReminderFor } from '../taskEndReminders';
 import { createEventRescuePlan } from '../eventRescue';
+import { expandCourses, parseHitszCourses, previewCourseImport } from '../courses';
+import { applyPlanToData } from '../planApply';
+import { layoutDay } from '../week';
 export { WeekGuideLesson } from './GuideWeekLesson';
 export { WeekZoomGuideLesson } from './GuideWeekZoomLesson';
+
+export function CourseImportGuideLesson() {
+  const lesson = useMemo(() => {
+    const initial = createEmpty();
+    const courses = parseHitszCourses([
+      { KEY: 'xq1', SKSJ: '统计机器学习 [1-2节][1周][T2617]' },
+      { KEY: 'xq1', SKSJ: '[实验]计算机网络 [2-3节][1周][T2604]' },
+    ]).courses;
+    const tasks = expandCourses(courses, { year: '2026-2027', term: '1', monday: '2026-08-31' }, true);
+    return { initial, preview: previewCourseImport(initial.tasks, tasks, '2026-2027/1/sample', 'merge', '2026-08-31') };
+  }, []);
+  const [example, setExample] = useState(lesson.initial);
+  const imported = example.tasks.length > 0;
+  return <View style={{ marginTop: 18, padding: 16, borderRadius: 13, backgroundColor: c.bg, gap: 10 }}>
+    <Badge title="课表导入演示 · 不改变日程" tone="neutral" />
+    <Label style={{ fontWeight: '600', fontSize: 13 }}>重叠课程也可保留</Label>
+    {lesson.preview.conflicts.map(conflict => <Label key={conflict.key} style={{ fontSize: 11, color: c.orange }}>{conflict.message}</Label>)}
+    {!imported ? <Button title="演示：导入重叠课程" small onPress={() => {
+      const result = applyPlanToData(lesson.initial, lesson.preview, { id: 'guide-course-import', date: '2026-08-31', createdAt: '2026-08-31T00:00:00', title: '示例课表导入' });
+      if (!result.error) setExample(result.data);
+    }} /> : <>
+      <Label accessibilityLiveRegion="polite" style={{ fontSize: 12, color: c.green }}>已导入 2 项课程，保留各自上课时间。</Label>
+      <View style={{ height: 160, position: 'relative' }}>{layoutDay(example.tasks).map(({ task, lane, lanes }) => <View key={task.id} style={{ position: 'absolute', left: `${lane / lanes * 100}%`, width: `${100 / lanes}%`, top: (task.start! - 510) * 0.8, height: task.duration * 0.8, padding: 3 }}>
+        <View style={{ flex: 1, padding: 8, borderRadius: 8, backgroundColor: c.lavender, borderWidth: 1, borderColor: c.border }}><Label style={{ fontSize: 10 }}>{clock(task.start!)}–{clock(task.start! + task.duration)}</Label><Label numberOfLines={2} style={{ fontSize: 12, marginTop: 4 }}>{task.title}</Label><Label muted style={{ fontSize: 10, marginTop: 4 }}>固定课程</Label></View>
+      </View>)}</View>
+      <Button title="重试课表导入演示" small variant="ghost" onPress={() => setExample(lesson.initial)} />
+    </>}
+  </View>;
+}
 
 export function EndNotificationGuideLesson() {
   const initial = useMemo(() => ({ ...createEmpty({ dayStart: 540, dayEnd: 1080, buffer: 10 }), tasks: [
