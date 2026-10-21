@@ -1,4 +1,5 @@
 import type { Settings } from './types.ts';
+import { greetingChoices, greetingPeriod, personalizeGreeting } from './greetings.ts';
 
 export function normalizeNickname(value: string): string | null {
   const name = value.trim().replace(/\s+/gu, ' ');
@@ -12,7 +13,5 @@ export function withNickname(settings: Settings, value: string): Settings | null
   return nickname === null ? null : { ...settings, nickname: nickname || undefined };
 }
 export function homeGreeting(nickname: string | undefined, minute: number): string {
-  const hour = Math.floor(minute / 60);
-  const greeting = hour < 5 ? '凌晨好' : hour < 11 ? '早上好' : hour < 14 ? '中午好' : hour < 18 ? '下午好' : '晚上好';
-  return nickname ? `${nickname}，${greeting}` : greeting;
+  return personalizeGreeting(nickname, greetingChoices(greetingPeriod(minute))[0].title);
 }

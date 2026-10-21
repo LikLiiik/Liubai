@@ -83,7 +83,7 @@ test('users who completed v4 receive split time and duration teaching with their
   const previous = { ...freshGuideProgress(), revision: 4, completedRevision: 4, deferredRevision: 4 };
   assert.equal(shouldShowGuide(previous), true);
   assert.equal(guideStartStep(previous), 'tasks');
-  assert.equal(GUIDE_STEPS.find(step => step.id === 'preferences')!.introduced, 12);
+  assert.equal(GUIDE_STEPS.find(step => step.id === 'preferences')!.introduced, 13);
   assert.equal(visitGuideStep(previous, 'preferences').completedRevision, 4);
 });
 
