@@ -207,8 +207,8 @@ test('fixed-event rescue previews a flexible continuation and never moves or dup
   assert.equal(createEventRescuePlan(source.tasks, settings, { date: day, now: 660, reason: 'overrun', minutes: 30, mode: 'boundary' }, 'missing', 'continuation').valid, false);
 });
 
-test('v13 returning users see the end-notification lesson while preserving their guide completion history', () => {
+test('v13 returning users see revised lessons while preserving access to end notifications and their completion history', () => {
   const previous = { ...freshGuideProgress(), revision: 13, completedRevision: 13, deferredRevision: 13 };
-  assert.equal(guideStartStep(previous), 'completion');
+  assert.equal(guideStartStep(previous), 'tasks');
   assert.equal(visitGuideStep(previous, 'completion').completedRevision, 13);
 });

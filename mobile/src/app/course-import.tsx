@@ -1,13 +1,14 @@
 import { KeyboardFormScrollView } from '../components/KeyboardForm';
 import React, { useMemo, useState } from 'react';
-import { Platform, Pressable, Switch, TextInput, useWindowDimensions, View } from 'react-native';
+import { Platform, Pressable, Switch, useWindowDimensions, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { usePlanning } from '../store';
-import { colors as c, font } from '../theme';
+import { colors as c } from '../theme';
 import { clock } from '../utils';
 import { expandCourses, parseHitszCourses, previewCourseImport, UNDERGRADUATE_PERIODS, validSemester, validSemesterTerm, type CourseDraft } from '../courses';
 import type { SchoolRead } from '../hitsz';
 import { SchoolLogin } from '../components/SchoolLogin';
+import { AcademicYearField, DateField } from '../components/DateField';
 import { Badge, Button, Card, Chip, Confirm, FieldTitle, Icon, Label } from '../components/ui';
 
 export default function CourseImport() {
@@ -41,7 +42,6 @@ export default function CourseImport() {
         `${year}/${term}`, mode, today);
     } catch { return null; }
   }, [draft, year, term, monday, data.tasks, excluded, mode, today]);
-  const input = { fontFamily: font, fontSize: 14, color: c.text, minHeight: 44, borderWidth: 1, borderColor: c.border, padding: 12, borderRadius: 10, backgroundColor: '#FCFCFD' };
   const canImport = !!preview?.valid && !!preview.changes.length && confirmed && !!selected.length;
 
   function receive(value: SchoolRead) {
@@ -76,7 +76,7 @@ export default function CourseImport() {
         <Card style={{ marginBottom: 18 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}><Icon name="book-open" color={c.purple} /><Label style={{ fontWeight: '600', flexShrink: 1 }}>哈尔滨工业大学（深圳）</Label><Badge title="本科生" tone="neutral" /></View>
           {!draft ? <>
-            <FieldTitle>学年</FieldTitle><TextInput accessibilityLabel="课表学年" value={year} onChangeText={setYear} style={input} autoCorrect={false} maxLength={9} />
+            <FieldTitle>学年</FieldTitle><AcademicYearField value={year} onChangeText={setYear} />
             <FieldTitle>学期</FieldTitle><View style={{ flexDirection: 'row', gap: 8 }}>{[['1', '秋季'], ['2', '春季'], ['3', '夏季']].map(([value, title]) => <Chip key={value} title={title} selected={term === value} onPress={() => setTerm(value)} />)}</View>
             <Label muted style={{ fontSize: 11, marginTop: 17 }}>{Platform.OS === 'web' ? '教务登录与课表读取在手机端完成。' : '在学校页面完成登录后，进入个人课表并读取。账号密码不在留白中保存。'}</Label>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 18 }}>
@@ -85,8 +85,8 @@ export default function CourseImport() {
             </View>
           </> : <>
             <Label muted style={{ marginTop: 12, fontSize: 12 }}>{year} · {term === '1' ? '秋季' : term === '2' ? '春季' : '夏季'} · 读取 {draft.courses.length} 门课程</Label>
-            <FieldTitle>第一周周一</FieldTitle><TextInput accessibilityLabel="第一周周一" value={monday} onChangeText={value => { setMonday(value); setConfirmed(false); }} placeholder="YYYY-MM-DD" style={input} autoCorrect={false} maxLength={10} />
-            {!validSemester(semester) && <Label accessibilityRole="alert" style={{ color: c.orange, fontSize: 11, marginTop: 8 }}>请填写本学年内有效的第一周周一日期。</Label>}
+            <FieldTitle>第一周周一</FieldTitle><DateField label="第一周周一" value={monday} onChangeText={value => { setMonday(value); setConfirmed(false); }} fallback={`${year.slice(0, 4)}-09-01`} minYear={Number(year.slice(0, 4))} maxYear={Number(year.slice(5))} />
+            {!validSemester(semester) && <Label accessibilityRole="alert" style={{ color: c.orange, fontSize: 11, marginTop: 8 }}>请选择本学年内的周一。</Label>}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 16 }}><Label style={{ flex: 1, fontSize: 12 }}>{selected.some(course => !course.pending) ? '已核对学期日期与本科作息' : '已核对收集箱课程'}</Label><Switch accessibilityLabel={selected.some(course => !course.pending) ? '已核对学期日期与本科作息' : '已核对收集箱课程'} value={confirmed} onValueChange={setConfirmed} /></View>
             <Button title={showTimes ? '收起本科作息' : '查看本科作息'} variant="ghost" small onPress={() => setShowTimes(!showTimes)} style={{ alignSelf: 'flex-start' }} />
             {showTimes && <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingTop: 8 }}>{UNDERGRADUATE_PERIODS.map(([start, end], index) => <Label key={index} muted style={{ fontSize: 11, width: 170 }}>第 {index + 1} 节　{clock(start)}–{clock(end)}</Label>)}</View>}

@@ -43,7 +43,7 @@ export function saveTaskDraft(tasks: Task[], settings: Settings, draft: TaskDraf
   const minutes = parseDuration(draft.duration);
   if (minutes === null || !Number.isInteger(minutes) || minutes < 5 || minutes > 720) return { kind: 'error', error: '预计时长应在 5 分钟至 12 小时之间。' };
   if (date !== null && !validDate(date)) return { kind: 'error', error: '请选择有效的任务日期。' };
-  if (deadline && !validDate(deadline)) return { kind: 'error', error: '截止日期请使用有效的 YYYY-MM-DD 格式。' };
+  if (deadline && !validDate(deadline)) return { kind: 'error', error: '截止日期无效，请重新选择。' };
   const manual = fixed || draft.timeMode === 'manual';
   const start = manual && date ? parseTime(draft.time) : draft.timeMode === 'auto' ? null : date && original?.date === date ? original.start : null;
   if (manual && date && start === null) return { kind: 'error', error: '请输入有效的开始时间。' };

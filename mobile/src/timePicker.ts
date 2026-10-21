@@ -29,9 +29,9 @@ export function changePickerHour(value: number, hour: number, min: number, max: 
   return Math.min(max, Math.max(min, hour * 60 + value % 60));
 }
 
-export function readWheelNumber(text: string, values: number[], selected: number, clockHour = false): number | null {
+export function readWheelNumber(text: string, values: number[], selected: number, clockHour = false, digits = 2): number | null {
   const normalized = text.trim().replace(/[０-９]/g, digit => String(digit.charCodeAt(0) - 65296));
-  if (!/^\d{1,2}$/.test(normalized)) return null;
+  if (!/^\d+$/.test(normalized) || normalized.length > digits) return null;
   const number = Number(normalized);
   if (!clockHour) return values.includes(number) ? number : null;
   const candidates = values.filter(value => value % 24 === number);
@@ -40,13 +40,13 @@ export function readWheelNumber(text: string, values: number[], selected: number
 
 // A leading zero may be a draft of 05, for example at a five-minute minimum.
 // Only complete, allowed values are ever sent to the parent form.
-export function readWheelDraft(text: string, values: number[], selected: number, clockHour = false): { text: string; value: number | null } | null {
+export function readWheelDraft(text: string, values: number[], selected: number, clockHour = false, digits = 2): { text: string; value: number | null } | null {
   const normalized = text.replace(/[０-９]/g, digit => String(digit.charCodeAt(0) - 65296));
-  if (!/^\d{0,2}$/.test(normalized)) return null;
+  if (!/^\d*$/.test(normalized) || normalized.length > digits) return null;
   if (!normalized) return { text: '', value: null };
-  const value = readWheelNumber(normalized, values, selected, clockHour);
+  const value = readWheelNumber(normalized, values, selected, clockHour, digits);
   if (value !== null) return { text: normalized, value };
-  const prefix = values.some(item => String(clockHour ? item % 24 : item).padStart(2, '0').startsWith(normalized));
+  const prefix = values.some(item => String(clockHour ? item % 24 : item).padStart(digits, '0').startsWith(normalized));
   return prefix ? { text: normalized, value: null } : null;
 }
 

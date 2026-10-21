@@ -6,6 +6,7 @@ import { clock, nextDay, uid } from '../utils';
 import type { Category, Priority, Task } from '../types';
 import { saveTaskDraft } from '../taskDraft';
 import { TimeField } from './TimeField';
+import { DateField } from './DateField';
 import { durationTime, parseDuration } from '../timePicker';
 import { Button, Chip, Confirm, Dialog, FieldTitle, Label } from './ui';
 import { categoriesFor } from '../categories';
@@ -66,19 +67,20 @@ function TaskEditorForm({ visible, task, target = 'today', initialDate, initialC
     {!quick && <><FieldTitle>预计需要多久</FieldTitle><View style={styles.chips}>{[15, 30, 45, 60, 90].map(value => <Chip key={value} title={`${value} 分钟`} selected={parseDuration(duration) === value} onPress={() => setDuration(durationTime(value))} />)}</View>
     <View style={{ marginTop: 10 }}><TimeField label="自定义时长" value={duration} onChangeText={setDuration} mode="duration" min={5} max={720} fallback={30} /></View></>}
     <FieldTitle>{quick ? '提醒日期' : '安排到哪里'}</FieldTitle><View style={styles.chips}>{!quick && <Chip title="收集箱" selected={!date} onPress={() => { setDate(null); setFixed(false); }} />}<Chip title="今天" selected={date === calendarToday} onPress={() => setDate(calendarToday)} /><Chip title="明天" selected={date === nextDay(calendarToday)} onPress={() => setDate(nextDay(calendarToday))} />{!quick && today !== calendarToday && <Chip title="继续昨晚" selected={date === today} onPress={() => { setDate(today); setFixed(false); }} />}{date && date !== today && date !== calendarToday && date !== nextDay(calendarToday) && <Chip title={date} selected />}</View>
-    {quick && <><TextInput accessibilityLabel="小事提醒日期" value={date ?? ''} onChangeText={setDate} placeholder="YYYY-MM-DD" style={[styles.input, { marginTop: 10 }]} maxLength={10} /><FieldTitle>提醒时间</FieldTitle><TimeField label="小事提醒时间" value={time} onChangeText={setTime} /><QuickReminderSetup /></>}
+    {date !== null && <View style={{ marginTop: 10 }}><DateField label={quick ? '小事提醒日期' : '任务日期'} value={date} onChangeText={setDate} fallback={calendarToday} /></View>}
+    {quick && <><FieldTitle>提醒时间</FieldTitle><TimeField label="小事提醒时间" value={time} onChangeText={setTime} /><QuickReminderSetup /></>}
     {date !== null && !quick && <><FieldTitle>开始时间</FieldTitle><View style={styles.chips}>
       <Chip title="自动安排" selected={timeMode === 'auto'} onPress={() => { setTimeMode('auto'); setFixed(false); }} />
       <Chip title="指定时间" selected={timeMode === 'manual'} onPress={() => { setTimeMode('manual'); if (!task && date === today && now >= 1440) setDate(calendarToday); }} />
     </View>
-      {timeMode === 'manual' && <><TextInput accessibilityLabel="任务日期" value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" style={[styles.input, { marginTop: 12 }]} maxLength={10} />
+      {timeMode === 'manual' && <>
         <View style={{ marginTop: 12 }}><TimeField label="开始时间" value={time} onChangeText={setTime} /></View>
         <View style={styles.switchRow}><View><Label style={{ fontSize: 13 }}>固定开始时间</Label><Label muted style={{ fontSize: 11 }}>会议、预约等，救场时保持不变</Label></View><Switch accessibilityLabel="固定开始时间" value={fixed} onValueChange={setFixed} trackColor={{ false: '#E3E1E9', true: '#C6B7EC' }} thumbColor={fixed ? c.purple : '#fff'} /></View></>}
     </>}
     <FieldTitle>属于生活的哪一部分</FieldTitle><CategoryPicker categories={categoriesFor(data)} value={category} onChange={setCategory} onAdd={addCategory} />
     {!quick && <><FieldTitle>优先级</FieldTitle><View style={styles.chips}>{([['high', '优先处理'], ['normal', '正常安排'], ['low', '有空再做']] as const).map(([value, label]) => <Chip key={value} title={label} selected={priority === value} onPress={() => setPriority(value)} />)}</View>
     <View style={styles.switchRow}><View><Label style={{ fontSize: 13 }}>设为重点</Label><Label muted style={{ fontSize: 11 }}>调整日程时，优先保护它</Label></View><Switch accessibilityLabel="设为重点" value={important} onValueChange={setImportant} trackColor={{ false: '#E3E1E9', true: '#C6B7EC' }} thumbColor={important ? c.purple : '#fff'} /></View>
-    <FieldTitle>截止日期（选填）</FieldTitle><TextInput accessibilityLabel="截止日期" value={deadline} onChangeText={setDeadline} placeholder="YYYY-MM-DD" placeholderTextColor={c.faint} style={styles.input} />
+    <FieldTitle>截止日期（选填）</FieldTitle><DateField label="截止日期" value={deadline} onChangeText={setDeadline} optional fallback={date ?? calendarToday} />
     <View style={[styles.chips, { marginTop: 9 }]}><Chip title="今天到期" selected={deadline === calendarToday} onPress={() => setDeadline(calendarToday)} /><Chip title="明天到期" selected={deadline === nextDay(calendarToday)} onPress={() => setDeadline(nextDay(calendarToday))} /><Chip title="无截止日期" selected={!deadline} onPress={() => setDeadline('')} /></View></>}
     {error ? <Label style={{ color: c.red, marginTop: 18, fontSize: 12 }} accessibilityRole="alert">{error}</Label> : null}
   </Dialog>

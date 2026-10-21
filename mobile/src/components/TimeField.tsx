@@ -6,7 +6,7 @@ import { durationText } from '../utils';
 import { Chip, Icon, Label } from './ui';
 
 const ROW = 40;
-function WheelNumber({ values, value, label, unit, clockHour, epoch, duration, disabled, onChange, onEditing }: { values: number[]; value: number; label: string; unit: string; clockHour?: boolean; epoch: number; duration: boolean; disabled: boolean; onChange: (value: number) => void; onEditing: (active: boolean) => void }) {
+function WheelNumber({ values, value, label, unit, clockHour, epoch, duration, disabled, digits = 2, onChange, onEditing }: { values: number[]; value: number; label: string; unit: string; clockHour?: boolean; epoch: number; duration: boolean; disabled: boolean; digits?: number; onChange: (value: number) => void; onEditing: (active: boolean) => void }) {
   const [edit, setEdit] = useState<{ source: number; epoch: number; text: string; invalid?: boolean } | null>(null);
   const current = edit?.source === value && edit.epoch === epoch ? edit : null;
   const display = String(clockHour ? value % 24 : value);
@@ -16,18 +16,18 @@ function WheelNumber({ values, value, label, unit, clockHour, epoch, duration, d
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
       <TextInput accessibilityLabel={`填写${label}`} accessibilityHint={range} value={current?.text ?? formatted}
         onChangeText={text => {
-          const next = readWheelDraft(text, values, value, clockHour);
+          const next = readWheelDraft(text, values, value, clockHour, digits);
           if (!next) { setEdit({ source: value, epoch, text: current?.text ?? formatted, invalid: true }); return; }
           setEdit({ source: next.value ?? value, epoch, text: next.text });
           if (next.value !== null) onChange(next.value);
-        }} onFocus={() => onEditing(true)} onBlur={() => { setEdit(null); onEditing(false); }} onSubmitEditing={() => { setEdit(null); onEditing(false); }} keyboardType="number-pad" inputMode="numeric" selectTextOnFocus maxLength={2} editable={!disabled} autoCorrect={false}
+        }} onFocus={() => onEditing(true)} onBlur={() => { setEdit(null); onEditing(false); }} onSubmitEditing={() => { setEdit(null); onEditing(false); }} keyboardType="number-pad" inputMode="numeric" selectTextOnFocus maxLength={digits} editable={!disabled} autoCorrect={false}
         style={{ flex: 1, minWidth: 34, minHeight: 44, padding: 7, borderWidth: 1, borderColor: current?.invalid ? c.red : '#E2DFEA', borderRadius: 8, textAlign: 'center', fontFamily: font, fontSize: 18, color: c.purpleDark, backgroundColor: duration ? '#fff' : '#FCFCFD' }} />
       <Label muted style={{ fontSize: 12 }}>{unit}</Label>
     </View>
     {current?.invalid && <Label accessibilityRole="alert" style={{ fontSize: 10, color: c.red }}>{range}</Label>}
   </View>;
 }
-function Wheel({ values, value, label, unit, renderValue, clockHour, expanded, duration, disabled, onChange }: { values: number[]; value: number; label: string; unit: string; renderValue?: (value: number) => string; clockHour?: boolean; expanded: boolean; duration: boolean; disabled: boolean; onChange: (value: number) => void }) {
+export function NumberWheel({ values, value, label, unit, renderValue, clockHour, expanded, duration = false, disabled = false, digits, onChange }: { values: number[]; value: number; label: string; unit: string; renderValue?: (value: number) => string; clockHour?: boolean; expanded: boolean; duration?: boolean; disabled?: boolean; digits?: number; onChange: (value: number) => void }) {
   const ref = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const moving = useRef(false);
@@ -38,8 +38,8 @@ function Wheel({ values, value, label, unit, renderValue, clockHour, expanded, d
   const [inputEpoch, setInputEpoch] = useState(0);
   const alignment = useRef<number | null>(null);
   const lastOffset = useRef(initialOffset.y);
-  const align = useCallback((y: number) => {
-    if (!ref.current || Math.abs(lastOffset.current - y) < 1) { alignment.current = null; return; }
+  const align = useCallback((y: number, force = false) => {
+    if (!ref.current || !force && Math.abs(lastOffset.current - y) < 1) { alignment.current = null; return; }
     alignment.current = y;
     ref.current.scrollTo({ y, animated: false });
   }, []);
@@ -52,7 +52,7 @@ function Wheel({ values, value, label, unit, renderValue, clockHour, expanded, d
   useEffect(() => {
     if (!moving.current) {
       const y = Math.max(0, values.indexOf(value)) * ROW;
-      align(y);
+      align(y, true);
     }
     // Values are represented by signature so changing the sibling wheel does not reset a gesture.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -67,9 +67,9 @@ function Wheel({ values, value, label, unit, renderValue, clockHour, expanded, d
     setInputEpoch(epoch => epoch + 1);
   }
   const adjust = (delta: number) => choose(values[Math.max(0, Math.min(values.length - 1, values.indexOf(value) + delta))]);
-  function beginScroll() { editing.current = false; alignment.current = null; Keyboard.dismiss(); }
+  function beginScroll() { editing.current = false; moving.current = true; alignment.current = null; Keyboard.dismiss(); }
   return <View style={{ flex: 1, minWidth: 0 }}>
-    <WheelNumber epoch={inputEpoch} label={label} unit={unit} values={values} value={value} clockHour={clockHour} duration={duration} disabled={disabled} onEditing={active => {
+    <WheelNumber epoch={inputEpoch} label={label} unit={unit} values={values} value={value} clockHour={clockHour} duration={duration} disabled={disabled} digits={digits} onEditing={active => {
       editing.current = active;
       moving.current = false;
       if (timer.current) clearTimeout(timer.current);
@@ -87,11 +87,14 @@ function Wheel({ values, value, label, unit, renderValue, clockHour, expanded, d
         style={{ height: ROW * 3 }} contentContainerStyle={{ paddingVertical: ROW }} contentOffset={initialOffset}
         nestedScrollEnabled showsVerticalScrollIndicator={false} snapToInterval={ROW} decelerationRate="fast" bounces={false} overScrollMode="never" keyboardShouldPersistTaps="handled"
         onScrollBeginDrag={beginScroll} onTouchStart={beginScroll} onPointerDown={beginScroll} {...(Platform.OS === 'web' ? { onWheel: beginScroll } : {})}
-        onLayout={() => { lastOffset.current = initialOffset.y; align(Math.max(0, values.indexOf(value)) * ROW); }}
+        onLayout={() => align(Math.max(0, values.indexOf(value)) * ROW, true)}
+        onContentSizeChange={() => { if (!moving.current) align(Math.max(0, values.indexOf(value)) * ROW, true); }}
         scrollEventThrottle={16} onScroll={event => {
           const y = event.nativeEvent.contentOffset.y;
           lastOffset.current = y;
-          if (editing.current) return;
+          // Initial positioning, layout changes and typed-value alignment also emit scroll
+          // events. Only a user-started wheel gesture may change the form value.
+          if (editing.current || !moving.current) return;
           const aligned = alignment.current;
           if (aligned !== null) {
             if (Math.abs(y - aligned) < 1) alignment.current = null;
@@ -126,10 +129,10 @@ export function TimeWheelPicker({ value, onChange, label, mode = 'clock', min = 
           onPress={disabled ? undefined : () => { Keyboard.dismiss(); onChange(changePickerDay(selected, day, min, max)); }} />)}
     </View>}
     <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
-      <Wheel label={`${label}小时`} unit={duration ? '小时' : '时'} expanded={expanded} duration={duration} disabled={disabled}
+      <NumberWheel label={`${label}小时`} unit={duration ? '小时' : '时'} expanded={expanded} duration={duration} disabled={disabled}
         values={pickerHours(min, max)} value={hours} clockHour={mode === 'end'} renderValue={hour => mode === 'end' && hour >= 24 ? `次日 ${String(hour - 24).padStart(2, '0')}` : duration ? String(hour) : String(hour).padStart(2, '0')}
         onChange={hour => onChange(changePickerHour(selected, hour, min, max))} />
-      <Wheel label={`${label}分钟`} unit={duration ? '分钟' : '分'} expanded={expanded} duration={duration} disabled={disabled}
+      <NumberWheel label={`${label}分钟`} unit={duration ? '分钟' : '分'} expanded={expanded} duration={duration} disabled={disabled}
         values={pickerMinutes(hours, min, max)} value={selected % 60} renderValue={duration ? minute => String(minute) : undefined} onChange={minute => onChange(hours * 60 + minute)} />
       {onToggle && <Pressable accessibilityRole="button" accessibilityLabel={`${expanded ? '收起' : '选择'}${label}`} accessibilityState={{ expanded, disabled }} disabled={disabled}
         onPress={() => { Keyboard.dismiss(); onToggle(); }} style={styles.toggle}><Icon name={expanded ? 'chevron-up' : duration ? 'sliders' : 'clock'} size={18} color={c.purple} /></Pressable>}

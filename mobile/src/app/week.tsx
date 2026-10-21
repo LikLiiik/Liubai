@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
+import { Animated, Platform, Pressable, ScrollView, useWindowDimensions, View, type ViewStyle } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { usePlanning } from '../store';
 import { colors as c } from '../theme';
@@ -12,9 +12,11 @@ import { TaskEditor } from '../components/TaskEditor';
 import { WeekTaskCard } from '../components/WeekTaskCard';
 import { WeekTaskDetails } from '../components/WeekTaskDetails';
 import { isQuick } from '../quick';
+import { boundedWeekMetrics, updateWeekPinch, zoomWeekAt, WEEK_GUTTER, WEEK_HEADER, type WeekMetrics, type WeekPinch } from '../weekZoom';
+import { useWeekPinch } from '../components/useWeekPinch';
 
-const GUTTER = 44;
-const HEADER = 53;
+const GUTTER = WEEK_GUTTER;
+const HEADER = WEEK_HEADER;
 const startMinute = 0;
 const endMinute = 1440;
 const DAYS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
@@ -30,7 +32,7 @@ export default function Week() {
   const { width } = useWindowDimensions();
   const compact = width < 600;
   const [anchor, setAnchor] = useState(initialDate);
-  const [expanded, setExpanded] = useState(false);
+  const [zoom, setZoom] = useState<WeekMetrics | null>(null);
   const [showTray, setShowTray] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const [boardSize, setBoardSize] = useState({ width: 0, height: 350 });
@@ -43,12 +45,16 @@ export default function Week() {
   const board = useRef<React.ComponentRef<typeof View>>(null);
   const horizontal = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const vertical = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  const [axisScroll] = useState(() => new Animated.Value(0));
+  const scrollTime = useMemo(() => Animated.event([{ nativeEvent: { contentOffset: { y: axisScroll } } }], { useNativeDriver: Platform.OS !== 'web' }), [axisScroll]);
   const viewport = useRef<Rect | null>(null);
   const offsets = useRef({ x: 0, y: 0 });
   const session = useRef<DragSession | null>(null);
   const latestPreview = useRef<DragPreview | null>(null);
   const scrollLayout = useRef<{ week: string; scale: number } | null>(null);
   const dragGeneration = useRef(0);
+  const pinchSession = useRef<WeekPinch | null>(null);
+  const zoomScroll = useRef<(WeekMetrics & { x: number; y: number }) | null>(null);
   const dates = useMemo(() => weekDates(anchor), [anchor]);
   const inWeek = useCallback((date: string | null) => !!date && date >= dates[0] && date <= dates[6], [dates]);
   const segments = useMemo(() => data.tasks.flatMap(calendarSegments).filter(segment => inWeek(segment.date)), [data.tasks, inWeek]);
@@ -58,12 +64,16 @@ export default function Week() {
   const selectedTask = data.tasks.find(task => task.id === selected);
   const unlockedTask = data.tasks.find(task => task.id === unlocked);
   // Keep roughly ten hours in view, with a readable minimum on shorter screens.
-  const hourHeight = Math.max(56, Math.min(84, (boardSize.height - HEADER - 2) / 10));
-  const pixelsPerMinute = (expanded ? Math.max(84, hourHeight * 1.25) : hourHeight) / 60;
-  const contentHeight = (endMinute - startMinute) * pixelsPerMinute;
+  const adaptiveHourHeight = Math.max(56, Math.min(84, (boardSize.height - HEADER - 2) / 10));
   const availableWidth = (boardSize.width || Math.max(320, width - (width >= 1000 ? 278 : 32))) - 2;
-  const dayWidth = Math.max(expanded ? 104 : 28, (availableWidth - GUTTER) / 7);
+  const adaptiveDayWidth = Math.max(28, (availableWidth - GUTTER) / 7);
+  const zoomViewport = { width: availableWidth, height: boardSize.height, minDayWidth: adaptiveDayWidth };
+  const { dayWidth, hourHeight } = boundedWeekMetrics(zoom ?? { dayWidth: adaptiveDayWidth, hourHeight: adaptiveHourHeight }, zoomViewport);
+  const pixelsPerMinute = hourHeight / 60;
+  const contentHeight = (endMinute - startMinute) * pixelsPerMinute;
   const gridWidth = GUTTER + dayWidth * 7;
+  const largeMetrics = { dayWidth: Math.max(104, adaptiveDayWidth), hourHeight: Math.max(84, adaptiveHourHeight * 1.25) };
+  const expanded = Math.abs(dayWidth - largeMetrics.dayWidth) < 0.5 && Math.abs(hourHeight - largeMetrics.hourHeight) < 0.5;
   const hours = Array.from({ length: (endMinute - startMinute) / 60 + 1 }, (_, index) => startMinute + index * 60);
   const dragging = !!drag;
   const totalMinutes = scheduled.reduce((sum, task) => sum + task.duration, 0);
@@ -101,8 +111,47 @@ export default function Week() {
     setDrag(null);
   }, []);
 
+  function applyZoom(next: WeekMetrics & { x: number; y: number }, adaptive = false) {
+    zoomScroll.current = next;
+    offsets.current = { x: next.x, y: next.y };
+    setZoom(adaptive ? null : { dayWidth: next.dayWidth, hourHeight: next.hourHeight });
+    requestAnimationFrame(initializeScroll);
+  }
+  const pinch = useWeekPinch(board, {
+    onBegin: points => {
+      cancelDrag(); setUnlocked(null);
+      const bounds = viewport.current;
+      if (!bounds) return;
+      pinchSession.current = { points: points.map(point => ({ x: point.x - bounds.x, y: point.y - bounds.y })) as WeekPinch['points'],
+        metrics: { dayWidth, hourHeight }, offset: { ...offsets.current }, viewport: zoomViewport };
+    },
+    onMove: points => {
+      const active = pinchSession.current, bounds = viewport.current;
+      if (!active || !bounds) return;
+      applyZoom(updateWeekPinch(active, points.map(point => ({ x: point.x - bounds.x, y: point.y - bounds.y })) as WeekPinch['points']));
+    },
+    onEnd: () => { pinchSession.current = null; },
+    onWheel: (point, factor, axis) => {
+      const bounds = viewport.current;
+      if (!bounds) return;
+      cancelDrag(); setUnlocked(null);
+      applyZoom(zoomWeekAt({ dayWidth, hourHeight }, { dayWidth: dayWidth * (axis === 'y' ? 1 : factor),
+        hourHeight: hourHeight * (axis === 'x' ? 1 : factor) }, offsets.current, { x: point.x - bounds.x, y: point.y - bounds.y }, zoomViewport));
+    },
+  });
+  useEffect(() => {
+    const listener = axisScroll.addListener(({ value }) => { if (!pinch.pinching && !zoomScroll.current) offsets.current.y = value; });
+    return () => axisScroll.removeListener(listener);
+  }, [axisScroll, pinch.pinching]);
+  function changeZoom(next: WeekMetrics | null) {
+    if (pinch.isBlocked()) return;
+    cancelDrag(); setUnlocked(null);
+    applyZoom(zoomWeekAt({ dayWidth, hourHeight }, next ?? { dayWidth: adaptiveDayWidth, hourHeight: adaptiveHourHeight },
+      offsets.current, { x: (availableWidth + GUTTER) / 2, y: (boardSize.height + HEADER) / 2 }, zoomViewport), next === null);
+  }
+
   function beginDrag(task: Task, x: number, y: number, segment?: CalendarSegment) {
-    if (task.completed || task.fixed && unlocked !== task.id) return;
+    if (pinch.isBlocked() || task.completed || task.fixed && unlocked !== task.id) return;
     const generation = ++dragGeneration.current;
     board.current?.measureInWindow((left, top, measuredWidth, height) => {
       if (generation !== dragGeneration.current) return;
@@ -207,6 +256,17 @@ export default function Week() {
 
   function initializeScroll() {
     if (!boardSize.width || !vertical.current) return;
+    const target = zoomScroll.current;
+    if (target) {
+      if (Math.abs(target.dayWidth - dayWidth) > 0.1 || Math.abs(target.hourHeight - hourHeight) > 0.1) return;
+      offsets.current = { x: target.x, y: target.y };
+      horizontal.current?.scrollTo({ x: target.x, animated: false });
+      vertical.current.scrollTo({ y: target.y, animated: false });
+      scrollLayout.current = { week: dates[0], scale: pixelsPerMinute };
+      zoomScroll.current = null;
+      measureBoard();
+      return;
+    }
     const previous = scrollLayout.current;
     if (previous?.week === dates[0] && previous.scale === pixelsPerMinute) return;
     // Resizing changes the scale, so preserve the time at the top instead of its pixel offset.
@@ -218,6 +278,10 @@ export default function Week() {
     vertical.current.scrollTo({ y, animated: false });
     measureBoard();
   }
+  useEffect(() => {
+    const frame = requestAnimationFrame(initializeScroll);
+    return () => cancelAnimationFrame(frame);
+  });
 
   return <View style={{ flex: 1, minHeight: 0, padding: compact ? 8 : 16, paddingBottom: 4 }}>
     <View style={{ height: 42, flexDirection: 'row', alignItems: 'center', gap: compact ? 5 : 12, marginBottom: 8 }}>
@@ -245,38 +309,43 @@ export default function Week() {
       </ScrollView>
     </View>}
 
-    <View ref={board} testID="week-board" onLayout={event => { setBoardSize({ width: event.nativeEvent.layout.width, height: event.nativeEvent.layout.height }); measureBoard(); }}
-      style={{ flex: 1, minHeight: 160, backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: c.border, overflow: 'hidden' }}>
-      <ScrollView ref={horizontal} horizontal scrollEnabled={!dragging} nestedScrollEnabled scrollEventThrottle={16}
-        onScroll={event => { offsets.current.x = event.nativeEvent.contentOffset.x; }} showsHorizontalScrollIndicator={expanded}
-        contentContainerStyle={{ width: gridWidth, height: boardSize.height }}>
-        <View style={{ width: gridWidth, height: boardSize.height }}>
+    <View ref={board} collapsable={false} testID="week-board" {...pinch.handlers} onLayout={event => {
+      const next = event.nativeEvent.layout;
+      if (boardSize.width && (Math.abs(next.width - boardSize.width) > 1 || Math.abs(next.height - boardSize.height) > 1)) {
+        pinch.cancel(); zoomScroll.current = null;
+      }
+      setBoardSize({ width: next.width, height: next.height }); measureBoard();
+    }}
+      style={{ flex: 1, minHeight: 160, backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: c.border, overflow: 'hidden', ...(Platform.OS === 'web' ? { touchAction: 'pan-x pan-y' } as ViewStyle : {}) }}>
+      <ScrollView ref={horizontal} testID="week-day-scroll" horizontal scrollEnabled={!dragging && !pinch.pinching} nestedScrollEnabled scrollEventThrottle={16}
+        onScroll={event => { if (!pinch.pinching && !zoomScroll.current) offsets.current.x = event.nativeEvent.contentOffset.x; }} showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ width: gridWidth, height: boardSize.height - 2 }}>
+        <View style={{ width: gridWidth, height: boardSize.height - 2 }}>
           <View style={{ height: HEADER, flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#E5E3ED', backgroundColor: '#FCFBFE' }}>
-            <View style={{ width: GUTTER, alignItems: 'center', justifyContent: 'center' }}><Label muted style={{ fontSize: 8 }}>时间</Label></View>
+            <View style={{ width: GUTTER }} />
             {dates.map((date, index) => <View key={date} style={{ width: dayWidth, alignItems: 'center', justifyContent: 'center', borderLeftWidth: 1, borderLeftColor: c.border, backgroundColor: date === today ? '#F1EDFA' : 'transparent' }}>
               <Label style={{ fontSize: 10, color: date === today ? c.purple : c.muted }}>{DAYS[index]}</Label>
               <Label style={{ fontSize: 14, lineHeight: 22, fontWeight: '600', color: date === today ? c.purpleDark : c.text }}>{Number(date.slice(8))}<Label style={{ fontSize: 8, color: c.purple }}>{date === today ? ' · 今' : ''}</Label></Label>
             </View>)}
           </View>
-          <ScrollView key={dates[0]} ref={vertical} testID="week-time-scroll" scrollEnabled={!dragging} nestedScrollEnabled scrollEventThrottle={16}
-            onScroll={event => { offsets.current.y = event.nativeEvent.contentOffset.y; }} onContentSizeChange={initializeScroll} style={{ flex: 1 }}>
+          <Animated.ScrollView key={dates[0]} ref={vertical} testID="week-time-scroll" scrollEnabled={!dragging && !pinch.pinching} nestedScrollEnabled scrollEventThrottle={16}
+            onScroll={scrollTime} onContentSizeChange={initializeScroll} style={{ flex: 1 }}>
             <View testID="week-time-grid" style={{ height: contentHeight + 40, width: gridWidth }}>
               {dates.map((date, index) => <View pointerEvents="none" key={date} style={{ position: 'absolute', top: 0, bottom: 0, left: GUTTER + index * dayWidth, width: dayWidth, borderLeftWidth: 1, borderLeftColor: '#EEEDF3', backgroundColor: date === today ? '#FCFAFF' : index >= 5 ? '#FCFCFD' : '#fff' }} />)}
               {nonPreferredRanges(data.settings).map(range => <View key={range.start} pointerEvents="none" style={{ position: 'absolute', left: GUTTER, right: 0, top: range.start * pixelsPerMinute, height: (range.end - range.start) * pixelsPerMinute, backgroundColor: 'rgba(100,95,115,0.045)' }} />)}
               {hours.map(minute => <View pointerEvents="none" key={minute} style={{ position: 'absolute', left: 0, right: 0, top: (minute - startMinute) * pixelsPerMinute }}>
                 <View style={{ position: 'absolute', left: GUTTER, right: 0, height: 1, backgroundColor: '#ECEAF2' }} />
                 {minute < endMinute && <View style={{ position: 'absolute', left: GUTTER, right: 0, top: 30 * pixelsPerMinute, height: 1, backgroundColor: '#F5F4F8' }} />}
-                <Label style={{ position: 'absolute', left: 4, top: minute === startMinute ? 1 : -7, fontSize: 9, lineHeight: 14, color: c.faint }}>{clock(minute)}</Label>
               </View>)}
               {dates.flatMap((date, dayIndex) => layoutDay(segments.filter(segment => segment.date === date).map(segment => ({ ...segment.task, date, start: segment.start, duration: segment.duration })), 36 / pixelsPerMinute).map(({ task: piece, lane, lanes }) => {
                 const segment = segments.find(item => item.task.id === piece.id && item.date === date)!;
                 const task = segment.task;
                 const cardHeight = isQuick(task) ? 36 : Math.max(12, segment.duration * pixelsPerMinute - 3);
-                return <WeekTaskCard key={`${task.id}-${date}`} task={task} overlapping={lanes > 1} displayStart={segment.start} continuation={segment.offset > 0} small={dayWidth / lanes < 90} availableHeight={cardHeight} unlocked={unlocked === task.id} dragging={drag?.task.id === task.id}
+                return <WeekTaskCard key={`${task.id}-${date}`} task={task} overlapping={lanes > 1} displayStart={segment.start} displayDuration={segment.duration} continuation={segment.offset > 0} small={dayWidth / lanes < 90} availableHeight={cardHeight} availableWidth={(dayWidth - 4) / lanes - 1} interactionBlocked={pinch.pinching} gestureBlocked={pinch.isBlocked} unlocked={unlocked === task.id} dragging={drag?.task.id === task.id}
                 style={{ position: 'absolute', top: (segment.start - startMinute) * pixelsPerMinute + 2,
                   left: GUTTER + dayIndex * dayWidth + lane * (dayWidth - 4) / lanes + 2,
                   width: (dayWidth - 4) / lanes - 1, height: cardHeight, zIndex: drag?.task.id === task.id ? 2 : 1 }}
-                onToggleImportant={() => toggleImportant(task.id)} onOpen={() => setSelected(task.id)} onUnlock={() => requestUnlock(task)} onBegin={(x, y) => beginDrag(task, x, y, segment)} onMove={updatePreview} onDrop={drop} onCancel={cancelDrag} />;
+                onToggleImportant={() => { if (!pinch.isBlocked()) toggleImportant(task.id); }} onOpen={() => { if (!pinch.isBlocked()) setSelected(task.id); }} onUnlock={() => { if (!pinch.isBlocked()) requestUnlock(task); }} onBegin={(x, y) => beginDrag(task, x, y, segment)} onMove={updatePreview} onDrop={drop} onCancel={cancelDrag} />;
               }))}
               {dates.includes(today) && now >= startMinute && now < endMinute && <View pointerEvents="none" style={{ position: 'absolute', top: (now - startMinute) * pixelsPerMinute, left: GUTTER + dates.indexOf(today) * dayWidth, width: dayWidth, height: 1, backgroundColor: '#B292D6', zIndex: 3 }}><View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: '#A383C8', marginTop: -2 }} /></View>}
               {drag?.position && calendarSegments({ ...drag.task, ...drag.position }).filter(segment => inWeek(segment.date)).map(segment => <View key={segment.date} pointerEvents="none" testID="week-drag-preview" style={{ position: 'absolute', top: (segment.start - startMinute) * pixelsPerMinute,
@@ -286,9 +355,15 @@ export default function Week() {
                 <Label numberOfLines={1} style={{ fontSize: 9, lineHeight: 14, fontWeight: '600', color: drag.error ? c.red : c.purpleDark }}>{segment.offset ? '续 · ' : ''}{clock(segment.start)}</Label><Label numberOfLines={3} style={{ fontSize: dayWidth < 90 ? 9 : 11, lineHeight: 14, color: drag.error ? c.red : c.purpleDark }}>{drag.task.title}</Label>
               </View>)}
             </View>
-          </ScrollView>
+          </Animated.ScrollView>
         </View>
       </ScrollView>
+      <View pointerEvents="none" testID="week-fixed-time-axis" style={{ position: 'absolute', left: 0, top: HEADER, bottom: 0, width: GUTTER, overflow: 'hidden', backgroundColor: '#fff', borderRightWidth: 1, borderRightColor: c.border, zIndex: 10 }}>
+        <Animated.View style={{ height: contentHeight + 40, transform: [{ translateY: Animated.multiply(axisScroll, -1) }] }}>
+          {hours.map(minute => <Label key={minute} testID={`week-hour-${minute}`} style={{ position: 'absolute', left: 4, top: (minute - startMinute) * pixelsPerMinute + (minute === startMinute ? 1 : -7), fontSize: 9, lineHeight: 14, color: c.faint }}>{clock(minute)}</Label>)}
+        </Animated.View>
+      </View>
+      <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, width: GUTTER, height: HEADER, backgroundColor: '#FCFBFE', borderBottomWidth: 1, borderRightWidth: 1, borderColor: c.border, alignItems: 'center', justifyContent: 'center', zIndex: 11 }}><Label muted style={{ fontSize: 8 }}>时间</Label></View>
       {(drag || unlockedTask) && <View pointerEvents={drag ? 'none' : 'box-none'} style={{ position: 'absolute', bottom: 10, left: GUTTER + 8, right: 10, alignItems: 'center', zIndex: 20 }}>
         <View style={{ maxWidth: 480, borderRadius: 11, paddingHorizontal: 13, paddingVertical: 10, backgroundColor: drag?.error ? '#F9E8EB' : unlockedTask ? '#FFF3DF' : '#EEE7FA', flexDirection: 'row', alignItems: 'center', gap: 8, boxShadow: '0px 3px 16px rgba(40,25,60,0.10)' }}>
           <Icon name={drag?.error ? 'alert-circle' : unlockedTask ? 'unlock' : 'move'} size={14} color={drag?.error ? c.red : unlockedTask ? c.orange : c.purple} />
@@ -301,14 +376,17 @@ export default function Week() {
     </View>
     <View style={{ height: 23, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
       {([['工作', '#BCAADF'], ['生活', '#DAC09B'], ...(data.tasks.some(isQuick) ? [['小事', '#BCAADF']] : []), ...(data.tasks.some(task => task.category === 'health') ? [['健康', '#AAC6B1']] : [])]).map(([label, color]) => <View key={label} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}><View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: color }} /><Label muted style={{ fontSize: 9 }}>{label}</Label></View>)}
-      <Label numberOfLines={1} muted style={{ flex: 1, fontSize: 9, textAlign: 'right' }}>{Platform.OS === 'web' ? '拖动调整 · 固定需解锁' : '长按拖动 · 固定需解锁'}</Label>
+      <Label numberOfLines={1} muted style={{ flex: 1, fontSize: 9, textAlign: 'right' }}>双指缩放 · {Platform.OS === 'web' ? '拖动调整' : '长按拖动'}</Label>
     </View>
 
     <Dialog visible={showOptions} title="周览显示" onClose={() => setShowOptions(false)} footer={<Button title="完成" onPress={() => setShowOptions(false)} />}>
       <Label muted style={{ fontSize: 12 }}>{dates[0].slice(0, 4)} 年 · 本周 {scheduled.length} 项安排 · {durationText(totalMinutes)}</Label>
-      <FieldTitle>表格密度</FieldTitle><View style={{ flexDirection: 'row', gap: 9 }}><Chip title="自适应" icon="grid" selected={!expanded} onPress={() => setExpanded(false)} /><Chip title="大卡片" icon="columns" selected={expanded} onPress={() => setExpanded(true)} /></View>
+      <FieldTitle>表格密度</FieldTitle><View style={{ flexDirection: 'row', gap: 9 }}><Chip title="自适应" icon="grid" selected={zoom === null} onPress={() => changeZoom(null)} /><Chip title="大卡片" icon="columns" selected={expanded} onPress={() => changeZoom(largeMetrics)} /></View>
+      <FieldTitle>横向缩放 · 列宽 {Math.round(dayWidth)} px</FieldTitle><View style={{ flexDirection: 'row', gap: 9 }}><Button title="缩小列宽" variant="secondary" small onPress={() => changeZoom({ dayWidth: dayWidth / 1.3, hourHeight })} /><Button title="放大列宽" variant="secondary" small onPress={() => changeZoom({ dayWidth: dayWidth * 1.3, hourHeight })} /></View>
+      <FieldTitle>纵向缩放 · 每小时 {Math.round(hourHeight)} px</FieldTitle><View style={{ flexDirection: 'row', gap: 9 }}><Button title="压缩时间轴" variant="secondary" small onPress={() => changeZoom({ dayWidth, hourHeight: hourHeight / 1.3 })} /><Button title="展开时间轴" variant="secondary" small onPress={() => changeZoom({ dayWidth, hourHeight: hourHeight * 1.3 })} /></View>
       <Label muted style={{ fontSize: 11, marginTop: 18 }}>时间轴保留 00:00–24:00，上下滑动查看。浅灰区域在偏好时段之外，手动安排到这些时间会先请你确认；自动安排仍按偏好设置执行。</Label>
       <Label muted style={{ fontSize: 11, marginTop: 9 }}>自适应模式按屏幕可用高度调整时间行高，七天列宽随屏幕变化。大卡片适合仔细调整，可上下、左右滚动。拖到边缘时表格会自动滚动，放下后按 15 分钟吸附。</Label>
+      <Label muted style={{ fontSize: 11, marginTop: 9 }}>双指横向或纵向分合可分别缩放，也可斜向同时缩放。卡片随空间展开时间、标题与备注，星标过小时精简或隐藏，放大后可直接设置重点。电脑也可用 Ctrl＋滚轮。</Label>
       <Label muted style={{ fontSize: 11, marginTop: 9 }}>固定事项默认锁定，确认解锁后仅可移动一次。所有有效移动都可以在回顾中撤销。</Label>
       <Label muted style={{ fontSize: 11, marginTop: 9 }}>手动安排可在确认后重叠显示；自动排程始终避开已占用的时间。</Label>
       <Button title="回到本周" variant="secondary" small onPress={() => { setAnchor(today); setUnlocked(null); setShowOptions(false); }} style={{ alignSelf: 'flex-start', marginTop: 18 }} />

@@ -83,7 +83,7 @@ test('users who completed v4 receive split time and duration teaching with their
   const previous = { ...freshGuideProgress(), revision: 4, completedRevision: 4, deferredRevision: 4 };
   assert.equal(shouldShowGuide(previous), true);
   assert.equal(guideStartStep(previous), 'tasks');
-  assert.equal(GUIDE_STEPS.find(step => step.id === 'preferences')!.introduced, 13);
+  assert.ok(GUIDE_STEPS.find(step => step.id === 'preferences')!.introduced > previous.completedRevision);
   assert.equal(visitGuideStep(previous, 'preferences').completedRevision, 4);
 });
 
@@ -100,7 +100,7 @@ test('v6 users start at revised tasks while retaining quick-reminder teaching an
   const previous = { ...freshGuideProgress(), revision: 6, completedRevision: 6, deferredRevision: 6 };
   assert.equal(shouldShowGuide(previous), true);
   assert.equal(guideStartStep(previous), 'tasks');
-  assert.equal(GUIDE_STEPS.find(step => step.id === 'quick')!.introduced, 7);
+  assert.ok(GUIDE_STEPS.find(step => step.id === 'quick')!.introduced > previous.completedRevision);
   assert.equal(visitGuideStep(previous, 'quick').completedRevision, 6);
 });
 

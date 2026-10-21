@@ -6,12 +6,13 @@ import { colors as c } from '../theme';
 import { Badge, Button, Dialog, Icon, Label } from './ui';
 import { GuidePermissions } from './GuidePermissions';
 import { useRouter } from 'expo-router';
-import { CategoryGuideLesson, CompletionGuideLesson, EndNotificationGuideLesson, NicknameGuideLesson, QuickGuideLesson, RescueGuideLesson, TimeGuideLesson, WeekGuideLesson } from './GuideLessons';
+import { CategoryGuideLesson, CompletionGuideLesson, EndNotificationGuideLesson, NicknameGuideLesson, QuickGuideLesson, RescueGuideLesson, TimeGuideLesson, WeekGuideLesson, WeekZoomGuideLesson } from './GuideLessons';
 
 export function OnboardingGuide({ blocked = false }: { blocked?: boolean }) {
   const guide = useGuide();
   const router = useRouter();
   const [lessonDragging, setLessonDragging] = useState(false);
+  const [lessonPinching, setLessonPinching] = useState(false);
   function finish() {
     const firstCompletion = guide.progress.completedRevision === 0;
     guide.finish();
@@ -19,7 +20,7 @@ export function OnboardingGuide({ blocked = false }: { blocked?: boolean }) {
   }
   const index = Math.max(0, GUIDE_STEPS.findIndex(step => step.id === guide.progress.stepId));
   const step = GUIDE_STEPS[index], visible = guide.ready && guide.visible && !blocked;
-  return <Dialog visible={visible} title={step.title} subtitle={step.summary} onClose={guide.dismiss} scrollEnabled={!lessonDragging}
+  return <Dialog visible={visible} title={step.title} subtitle={step.summary} onClose={guide.dismiss} scrollEnabled={!lessonDragging && !lessonPinching}
     footer={<View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8 }}>
       <Button title="稍后再看" small variant="ghost" onPress={guide.dismiss} />
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
@@ -38,7 +39,7 @@ export function OnboardingGuide({ blocked = false }: { blocked?: boolean }) {
     {visible && step.id === 'tasks' && <TimeGuideLesson />}
     {visible && step.id === 'quick' && <QuickGuideLesson />}
     {visible && step.id === 'completion' && <><CompletionGuideLesson /><EndNotificationGuideLesson /></>}
-    {visible && step.id === 'week' && <WeekGuideLesson onDraggingChange={setLessonDragging} />}
+    {visible && step.id === 'week' && <><WeekGuideLesson onDraggingChange={setLessonDragging} /><WeekZoomGuideLesson onPinchingChange={setLessonPinching} /></>}
     {visible && step.id === 'rescue' && <RescueGuideLesson />}
     {visible && step.id === 'explore' && <CategoryGuideLesson />}
     {visible && step.id === 'preferences' && <NicknameGuideLesson />}
