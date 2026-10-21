@@ -32,6 +32,7 @@ function TaskEditorForm({ visible, task, target = 'today', initialDate, initialC
   const [priority, setPriority] = useState<Priority>(task?.priority ?? 'normal');
   const [important, setImportant] = useState(task?.important ?? false);
   const [fixed, setFixed] = useState(task?.fixed ?? false);
+  const [timeMode, setTimeMode] = useState<'auto' | 'manual'>(task?.start !== null && task?.start !== undefined ? 'manual' : 'auto');
   const [date, setDate] = useState<string | null>(task ? task.date : initialDate ?? (initialKind === 'quick' ? quickDefaultDate : target === 'today' ? today : null));
   const [time, setTime] = useState(clock(task?.start ?? (initialKind === 'quick' ? quickDefaultTime : calendarNow)));
   const [deadline, setDeadline] = useState(task?.deadline ?? '');
@@ -43,7 +44,7 @@ function TaskEditorForm({ visible, task, target = 'today', initialDate, initialC
   function save(consentKey?: string) {
     setOverlapRequest(null);
     setError('');
-    const result = saveTaskDraft(data.tasks, data.settings, { id: taskId, kind, title, notes, duration, category, priority, important, fixed, date, time, deadline },
+    const result = saveTaskDraft(data.tasks, data.settings, { id: taskId, kind, title, notes, duration, category, priority, important, fixed, date, time, timeMode, deadline },
       { today, now, calendarToday, calendarNow }, task, consentKey);
     if (result.kind === 'error') { setError(result.error); return; }
     if (result.kind === 'overlap') { setOverlapRequest(result); return; }
@@ -66,8 +67,14 @@ function TaskEditorForm({ visible, task, target = 'today', initialDate, initialC
     <View style={{ marginTop: 10 }}><TimeField label="自定义时长" value={duration} onChangeText={setDuration} mode="duration" min={5} max={720} fallback={30} /></View></>}
     <FieldTitle>{quick ? '提醒日期' : '安排到哪里'}</FieldTitle><View style={styles.chips}>{!quick && <Chip title="收集箱" selected={!date} onPress={() => { setDate(null); setFixed(false); }} />}<Chip title="今天" selected={date === calendarToday} onPress={() => setDate(calendarToday)} /><Chip title="明天" selected={date === nextDay(calendarToday)} onPress={() => setDate(nextDay(calendarToday))} />{!quick && today !== calendarToday && <Chip title="继续昨晚" selected={date === today} onPress={() => { setDate(today); setFixed(false); }} />}{date && date !== today && date !== calendarToday && date !== nextDay(calendarToday) && <Chip title={date} selected />}</View>
     {quick && <><TextInput accessibilityLabel="小事提醒日期" value={date ?? ''} onChangeText={setDate} placeholder="YYYY-MM-DD" style={[styles.input, { marginTop: 10 }]} maxLength={10} /><FieldTitle>提醒时间</FieldTitle><TimeField label="小事提醒时间" value={time} onChangeText={setTime} /><QuickReminderSetup /></>}
-    {date && !quick && <><View style={styles.switchRow}><View><Label style={{ fontSize: 13 }}>固定开始时间</Label><Label muted style={{ fontSize: 11 }}>会议、预约等，救场时保持不变</Label></View><Switch accessibilityLabel="固定开始时间" value={fixed} onValueChange={value => { setFixed(value); if (value && !task && date === today && now >= 1440) { setDate(calendarToday); setTime(clock(calendarNow)); } }} trackColor={{ false: '#E3E1E9', true: '#C6B7EC' }} thumbColor={fixed ? c.purple : '#fff'} /></View>
-      {fixed && <TimeField label="开始时间" value={time} onChangeText={setTime} />}</>}
+    {date !== null && !quick && <><FieldTitle>开始时间</FieldTitle><View style={styles.chips}>
+      <Chip title="自动安排" selected={timeMode === 'auto'} onPress={() => { setTimeMode('auto'); setFixed(false); }} />
+      <Chip title="指定时间" selected={timeMode === 'manual'} onPress={() => { setTimeMode('manual'); if (!task && date === today && now >= 1440) setDate(calendarToday); }} />
+    </View>
+      {timeMode === 'manual' && <><TextInput accessibilityLabel="任务日期" value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" style={[styles.input, { marginTop: 12 }]} maxLength={10} />
+        <View style={{ marginTop: 12 }}><TimeField label="开始时间" value={time} onChangeText={setTime} /></View>
+        <View style={styles.switchRow}><View><Label style={{ fontSize: 13 }}>固定开始时间</Label><Label muted style={{ fontSize: 11 }}>会议、预约等，救场时保持不变</Label></View><Switch accessibilityLabel="固定开始时间" value={fixed} onValueChange={setFixed} trackColor={{ false: '#E3E1E9', true: '#C6B7EC' }} thumbColor={fixed ? c.purple : '#fff'} /></View></>}
+    </>}
     <FieldTitle>属于生活的哪一部分</FieldTitle><CategoryPicker categories={categoriesFor(data)} value={category} onChange={setCategory} onAdd={addCategory} />
     {!quick && <><FieldTitle>优先级</FieldTitle><View style={styles.chips}>{([['high', '优先处理'], ['normal', '正常安排'], ['low', '有空再做']] as const).map(([value, label]) => <Chip key={value} title={label} selected={priority === value} onPress={() => setPriority(value)} />)}</View>
     <View style={styles.switchRow}><View><Label style={{ fontSize: 13 }}>设为重点</Label><Label muted style={{ fontSize: 11 }}>调整日程时，优先保护它</Label></View><Switch accessibilityLabel="设为重点" value={important} onValueChange={setImportant} trackColor={{ false: '#E3E1E9', true: '#C6B7EC' }} thumbColor={important ? c.purple : '#fff'} /></View>

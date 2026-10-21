@@ -99,11 +99,13 @@ export function CategoryGuideLesson() {
 
 export function TimeGuideLesson() {
   const [time, setTime] = useState(870);
+  const [manual, setManual] = useState(true);
   const [duration, setDuration] = useState(durationTime(90));
   return <View style={{ marginTop: 20, padding: 16, backgroundColor: c.bg, borderRadius: 13 }}>
     <View style={{ alignSelf: 'flex-start', marginBottom: 12 }}><Badge title="教学演示 · 不改变日程" tone="neutral" /></View>
-    <Label muted style={{ fontSize: 12, marginBottom: 8 }}>时间点</Label>
-    <TimeWheelPicker label="演示开始时间" value={time} onChange={setTime} />
+    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}><Button title="演示：自动安排" small variant={manual ? 'ghost' : 'secondary'} onPress={() => setManual(false)} /><Button title="演示：指定时间" small variant={manual ? 'secondary' : 'ghost'} onPress={() => setManual(true)} /></View>
+    {manual ? <><Label muted style={{ fontSize: 12, marginBottom: 8 }}>开始时间</Label><TimeWheelPicker label="演示开始时间" value={time} onChange={setTime} /></>
+      : <Label muted style={{ fontSize: 12 }}>按偏好自动寻找空位，避开已有事件。</Label>}
     <FieldTitle>事件时长</FieldTitle><TimeField label="演示事件时长" value={duration} onChangeText={setDuration} mode="duration" min={5} max={720} fallback={90} />
   </View>;
 }

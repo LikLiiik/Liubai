@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { usePlanning } from '../store';
 import { colors as c } from '../theme';
 import { clock, dateKey, durationText } from '../utils';
-import { freeMinutes } from '../scheduler';
+import { dayBudget, timelineGaps } from '../budget';
 import { inPlanningDay, occupiedDuration, relativeStart } from '../time';
 import type { RescueReason, Task } from '../types';
 import { Badge, Button, Card, EmptyState, Icon, Label } from '../components/ui';
@@ -29,11 +29,9 @@ export default function Today() {
   const pending = tasks.filter(task => !task.completed);
   const planned = pending.filter(task => task.start !== null).sort((a, b) => timelineTask(a).start! - timelineTask(b).start!);
   const unscheduled = pending.filter(task => task.start === null);
-  const capacity = freeMinutes(data.tasks, today, Math.max(now, data.settings.dayStart), data.settings.dayEnd);
-  const flexible = pending.filter(task => !isQuick(task) && !task.fixed);
-  const demand = flexible.reduce((sum, task) => sum + task.duration, 0);
-  const switching = Math.max(0, flexible.length - 1) * data.settings.buffer;
-  const space = capacity - demand - switching;
+  const { capacity, occupied, pendingMinutes, switching, space } = dayBudget(data.tasks, data.settings, today, now);
+  const demand = occupied + pendingMinutes;
+  const gaps = timelineGaps(planned, today);
   const focus = pending.filter(task => task.important);
   const progress = tasks.length ? Math.round(done.length / tasks.length * 100) : 0;
   const date = new Date(`${calendarToday}T12:00:00`);
@@ -76,7 +74,7 @@ export default function Today() {
               <View style={{ width: `${Math.min(100, capacity ? demand / capacity * 100 : demand ? 100 : 0)}%`, backgroundColor: '#A18BD8' }} />
               <View style={{ width: `${Math.min(100, capacity ? switching / capacity * 100 : 0)}%`, backgroundColor: '#D3C9E8' }} />
             </View>
-            <View style={{ flexDirection: 'row', gap: 14, flexWrap: 'wrap' }}><Legend color="#A18BD8" text={`待做任务 ${durationText(demand)}`} /><Legend color="#D3C9E8" text={`切换缓冲 ${switching} 分钟`} /><Legend color="#E8E4F0" text={`扣除固定事项后可用 ${durationText(capacity)}`} /></View>
+            <View style={{ flexDirection: 'row', gap: 14, flexWrap: 'wrap' }}><Legend color="#A18BD8" text={`事件占用 ${durationText(occupied)}`} /><Legend color="#D3C9E8" text={`切换缓冲 ${switching} 分钟`} /><Legend color="#E8E4F0" text={`待安排 ${durationText(pendingMinutes)}`} /></View>
           </Card>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}><View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}><Label style={{ fontSize: 16, fontWeight: '600' }}>今日时间轴</Label><Label muted style={{ fontSize: 10 }}>{pending.length} 项待完成</Label></View><View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}><View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: c.purple }} /><Label style={{ fontSize: 10, color: c.purple }}>{data.demo ? '模拟' : '现在'} {clock(now)}</Label></View></View>
 
@@ -84,9 +82,8 @@ export default function Today() {
             {showDone && done.map(task => <TimelineTask key={task.id} task={timelineTask(task)} now={now} onEdit={() => setEditor({ task })} onToggle={() => toggleTask(task)} onToggleImportant={() => toggleImportant(task.id)} compact={compact} />)}</>}
 
           {planned.length === 0 && unscheduled.length === 0 && <Card style={{ padding: 12 }}><EmptyState title={done.length ? '今天的安排，都完成了' : '今天还有很多可能'} description={done.length ? '留一点时间给自己。明天的事，可以明天再说。' : '先放进一件重要的小事，其余的慢慢来。'} action="添加第一件事" onPress={() => setEditor({})} /></Card>}
-          {planned.map((task, index) => {
-            const next = planned[index + 1];
-            const gap = next && !isQuick(task) && !isQuick(next) ? relativeStart(next, today)! - relativeStart(task, today)! - task.duration : 0;
+          {planned.map(task => {
+            const gap = gaps.get(task.id) ?? 0;
             return <View key={task.id}><TimelineTask task={timelineTask(task)} now={now} onEdit={() => setEditor({ task })} onToggle={() => toggleTask(task)} onToggleImportant={() => toggleImportant(task.id)} compact={compact} />
               {gap >= 15 && <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', paddingLeft: compact ? 58 : 75, paddingVertical: 7, marginBottom: 8 }}><Icon name="coffee" size={12} color="#A5A0B1" /><Label style={{ color: '#A5A0B1', fontSize: 10 }}>{gap} 分钟留白 · 伸个懒腰，喘口气</Label></View>}
             </View>;

@@ -11,6 +11,54 @@ const semester = { year: '2026-2027', term: '1', monday: '2026-08-31' };
 const semesterKey = '2026-2027/1';
 const getTasks = () => expandCourses(parseHitszCourses(SAMPLE_ROWS).courses, semester);
 
+test('the reported experiment titles retain their prefix and numeric schedule fields parse separately', () => {
+  const source = [
+    '[实验]统计机器学习 [11-12节][2-2,4-4周] [T2617]',
+    '[实验]操作系统1/第1组 [5-8节] [10-10,12-12,14-14,3-3,6-6,8-8周] [T2102]',
+    '[实验]计算机网络 配置实验/第3组 [7-8节] [10-10,12-12,8-8周] [T2604-T2606]',
+    '[实验]软件构造实践 第一批/第3组 [1-2节] [13-13,14-14周] [T2507]',
+  ];
+  const result = parseHitszCourses(source.map((SKSJ, index) => ({ KEY: `xq${index + 1}`, SKSJ })));
+  assert.deepEqual(result.issues, []);
+  assert.equal(result.courses.length, 4);
+  assert.ok(result.courses.every(course => course.title.startsWith('[实验]') && !course.pending && course.teacher === ''));
+  assert.equal(result.courses[0].room, 'T2617');
+  assert.deepEqual(result.courses[0].weeks, [2, 4]);
+  assert.deepEqual(result.courses[1].weeks, [3, 6, 8, 10, 12, 14]);
+  assert.equal(expandCourses(result.courses, semester).length, 13);
+});
+
+test('reported undated remark courses import to inbox with original text and stay idempotent and protected', () => {
+  const rows = [{ KEY: 'bz1', SKSJ: '体育E齐冠杰 备注:健康跑' }, { KEY: 'bz2', SKSJ: '软件构造实践 汪花梅 备注:无' }];
+  const draft = parseHitszCourses(rows);
+  assert.deepEqual(draft.issues, []);
+  const incoming = expandCourses(draft.courses, { ...semester, monday: '' });
+  assert.ok(incoming.every(task => !task.date && task.start === null && !task.fixed && task.duration === 30));
+  assert.equal(incoming[0].title, '体育E齐冠杰');
+  assert.ok(incoming[0].notes.includes(rows[0].SKSJ));
+  const first = previewCourseImport([], incoming, semesterKey, 'merge', semester.monday);
+  assert.equal(first.valid, true);
+  assert.ok(first.changes.every(change => change.to === '收集箱'));
+  const repeated = previewCourseImport(first.tasks, incoming, semesterKey, 'merge', semester.monday);
+  assert.equal(repeated.changes.length, 0);
+  assert.equal(repeated.unchanged, 2);
+  const changed = [{ ...first.tasks[0], notes: '我的备注' }, first.tasks[1]];
+  const synced = previewCourseImport(changed, [], semesterKey, 'sync', semester.monday);
+  assert.equal(synced.protected, 1);
+  assert.equal(synced.tasks.length, 1);
+  assert.equal(synced.tasks[0].notes, '我的备注');
+});
+
+test('missing titles still report errors while unknown dates preserve known duration without inventing a date', () => {
+  const result = parseHitszCourses([{ KEY: 'xq1', SKSJ: '[实验][1-2节][1-2周]' }, { KEY: 'unknown', SKSJ: '[实验]未定星期 [1-2节][1-2周][T2507]' }]);
+  assert.match(result.issues[0], /课程名称缺失/);
+  const task = expandCourses(result.courses, semester)[0];
+  assert.equal(task.duration, 105);
+  assert.equal(task.start, null);
+  assert.equal(task.date, null);
+  assert.ok(task.notes.includes('星期未识别'));
+});
+
 test('week and period expressions support odd/even weeks, ranges and discrete values without unbounded expansion', () => {
   assert.deepEqual(parseNumbers('第1-8周（单）', 30), [1, 3, 5, 7]);
   assert.deepEqual(parseNumbers('2—6周(双)', 30), [2, 4, 6]);
@@ -20,25 +68,28 @@ test('week and period expressions support odd/even weeks, ranges and discrete va
 
 test('school rows parse text or HTML line breaks and report unsupported rows instead of silently losing classes', () => {
   const result = parseHitszCourses({ content: [SAMPLE_ROWS[0], { ...SAMPLE_ROWS[1], SKSJ: SAMPLE_ROWS[1].SKSJ.replaceAll('\n', '<br/>') }, { KEY: 'note', SKSJ: '备注：线上课程' }, { KEY: 'xq1', SKSJ: '不完整课程' }] });
-  assert.equal(result.courses.length, 2);
+  assert.equal(result.courses.length, 3);
   assert.equal(result.courses[0].room, 'T2-203');
   assert.deepEqual(result.courses[1].weeks, [1, 3]);
   assert.equal(result.ignored, 1);
-  assert.equal(result.issues.length, 1);
+  assert.equal(result.issues.length, 0);
+  assert.ok(result.courses[2].pending);
   assert.throws(() => parseHitszCourses({ login: true }));
   assert.equal(parseHitszCourses([SAMPLE_ROWS[0], { ...SAMPLE_ROWS[0], SKSJ: SAMPLE_ROWS[0].SKSJ.replace('T2-203', 'T2-404') }]).issues.length, 1);
 });
 
-test('remarks after a course title are ignored only when no scheduled week or period is present', () => {
+test('named remarks and incomplete schedules stay available for inbox import', () => {
   const result = parseHitszCourses([
     { KEY: 'bz', SKSJ: '线上通识课<br/>备注：慕课，自主学习' },
     { ...SAMPLE_ROWS[0], SKSJ: `${SAMPLE_ROWS[0].SKSJ}\n备注：请按时上课` },
     { KEY: 'xq3', SKSJ: '时间待确认\n[1-4周]\n备注：节次待定' },
   ]);
-  assert.equal(result.ignored, 1);
-  assert.equal(result.courses.length, 1);
-  assert.equal(result.issues.length, 1);
-  assert.match(result.issues[0], /时间待确认.*节次未识别/);
+  assert.equal(result.ignored, 0);
+  assert.equal(result.courses.length, 3);
+  assert.equal(result.issues.length, 0);
+  assert.ok(result.courses[0].pending);
+  assert.equal(result.courses[1].pending, undefined);
+  assert.match(result.courses[2].pending!.reason, /节次未识别/);
 });
 
 test('complete bracketed or separate schedule fields accept outside units, spacing and full-width digits', () => {
@@ -70,13 +121,13 @@ test('incomplete and ambiguous fields identify the course and failing field with
     { KEY: 'xq1', SKSJ: '不合法节次\n[1-4周]\n[1-99节]' },
   ];
   const result = parseHitszCourses(rows);
-  assert.equal(result.courses.length, 0);
-  assert.equal(result.issues.length, rows.length);
+  assert.equal(result.courses.length, rows.length);
+  assert.equal(result.issues.length, 0);
   for (const [index, message] of ['星期未识别', '周次未识别', '周次「1-4,待定周」', '多组周次', '节次「1-99节」'].entries()) {
-    assert.ok(result.issues[index].includes(message), result.issues[index]);
-    assert.ok(result.issues[index].includes(rows[index].SKSJ.split('\n')[0]));
-    assert.match(result.issues[index], /课表原文：/);
+    assert.ok(result.courses[index].pending!.reason.includes(message));
+    assert.equal(result.courses[index].pending!.raw, rows[index].SKSJ);
   }
+  assert.ok(expandCourses(result.courses, semester).every(task => task.date === null && task.start === null && !task.fixed));
 });
 
 test('odd/even markers outside the week brackets retain their meaning', () => {

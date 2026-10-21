@@ -11,9 +11,17 @@ test('the current tutorial has stable distinct steps and covers every interactiv
   assert.ok(GUIDE_STEPS.every(step => step.introduced > 0 && step.introduced <= GUIDE_REVISION));
 });
 
-test('v10 users start at the direct-star week lesson without losing tutorial history', () => {
+test('v11 users see manual-time and pending-course teaching without losing previous completion', () => {
+  const previous = { ...freshGuideProgress(), revision: 11, completedRevision: 11, deferredRevision: 11 };
+  assert.equal(guideStartStep(previous), 'tasks');
+  assert.equal(visitGuideStep(previous, 'tasks').completedRevision, 11);
+  assert.ok(GUIDE_STEPS.find(step => step.id === 'tasks')!.tips.join('').includes('指定时间'));
+  assert.ok(GUIDE_STEPS.find(step => step.id === 'preferences')!.tips.join('').includes('收集箱'));
+});
+
+test('v10 users receive revised task teaching and keep access to the direct-star lesson', () => {
   const previous = { ...freshGuideProgress(), revision: 10, completedRevision: 10, deferredRevision: 10 };
-  assert.equal(guideStartStep(previous), 'week');
+  assert.equal(guideStartStep(previous), 'tasks');
   assert.equal(visitGuideStep(previous, 'week').completedRevision, 10);
   assert.ok(GUIDE_STEPS.find(step => step.id === 'week')!.tips.join('').includes('星标'));
 });
@@ -75,7 +83,7 @@ test('users who completed v4 receive split time and duration teaching with their
   const previous = { ...freshGuideProgress(), revision: 4, completedRevision: 4, deferredRevision: 4 };
   assert.equal(shouldShowGuide(previous), true);
   assert.equal(guideStartStep(previous), 'tasks');
-  assert.equal(GUIDE_STEPS.find(step => step.id === 'preferences')!.introduced, 10);
+  assert.equal(GUIDE_STEPS.find(step => step.id === 'preferences')!.introduced, 12);
   assert.equal(visitGuideStep(previous, 'preferences').completedRevision, 4);
 });
 
@@ -88,18 +96,18 @@ test('users who completed v5 start at category teaching and retain their previou
   assert.equal(visitGuideStep(previous, 'explore').completedRevision, 5);
 });
 
-test('v6 users start at the new quick-reminder lesson while their prior completion stays intact', () => {
+test('v6 users start at revised tasks while retaining quick-reminder teaching and completion', () => {
   const previous = { ...freshGuideProgress(), revision: 6, completedRevision: 6, deferredRevision: 6 };
   assert.equal(shouldShowGuide(previous), true);
-  assert.equal(guideStartStep(previous), 'quick');
+  assert.equal(guideStartStep(previous), 'tasks');
   assert.equal(GUIDE_STEPS.find(step => step.id === 'quick')!.introduced, 7);
   assert.equal(visitGuideStep(previous, 'quick').completedRevision, 6);
 });
 
-test('v7 users start with completion choices while retaining their earlier guide completion', () => {
+test('v7 users start at revised tasks while retaining earlier completion lessons', () => {
   const previous = { ...freshGuideProgress(), revision: 7, completedRevision: 7, deferredRevision: 7 };
   assert.equal(shouldShowGuide(previous), true);
-  assert.equal(guideStartStep(previous), 'completion');
+  assert.equal(guideStartStep(previous), 'tasks');
   assert.equal(GUIDE_STEPS.find(step => step.id === 'completion')!.introduced, 9);
   assert.equal(visitGuideStep(previous, 'completion').completedRevision, 7);
 });
@@ -107,7 +115,7 @@ test('v7 users start with completion choices while retaining their earlier guide
 test('v8 users receive the revised completion-undo choices without losing their guide history', () => {
   const previous = { ...freshGuideProgress(), revision: 8, completedRevision: 8, deferredRevision: 8 };
   assert.equal(shouldShowGuide(previous), true);
-  assert.equal(guideStartStep(previous), 'completion');
+  assert.equal(guideStartStep(previous), 'tasks');
   assert.equal(visitGuideStep(previous, 'completion').completedRevision, 8);
   assert.ok(GUIDE_STEPS.find(step => step.id === 'completion')!.tips.join('').includes('撤销完成'));
 });

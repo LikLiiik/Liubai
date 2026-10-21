@@ -41,7 +41,7 @@ test('nickname changes persist with existing preferences and can be cleared with
 
 test('returning v9 users receive revised lessons including nickname teaching while keeping their completion history', () => {
   const previous = { ...freshGuideProgress(), revision: 9, completedRevision: 9, deferredRevision: 9 };
-  assert.equal(guideStartStep(previous), 'week');
+  assert.equal(guideStartStep(previous), 'tasks');
   assert.equal(visitGuideStep(previous, 'preferences').completedRevision, 9);
   assert.ok(GUIDE_STEPS.find(step => step.id === 'preferences')!.tips.join('').includes('昵称'));
 });

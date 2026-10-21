@@ -8,6 +8,7 @@ import { isQuick } from './quick.ts';
 
 export type TaskDraft = {
   kind?: Task['kind'];
+  timeMode?: 'auto' | 'manual';
   id: string; title: string; notes: string; duration: string; category: Category; priority: Priority;
   important: boolean; fixed: boolean; date: string | null; time: string; deadline: string;
 };
@@ -43,8 +44,9 @@ export function saveTaskDraft(tasks: Task[], settings: Settings, draft: TaskDraf
   if (minutes === null || !Number.isInteger(minutes) || minutes < 5 || minutes > 720) return { kind: 'error', error: '预计时长应在 5 分钟至 12 小时之间。' };
   if (date !== null && !validDate(date)) return { kind: 'error', error: '请选择有效的任务日期。' };
   if (deadline && !validDate(deadline)) return { kind: 'error', error: '截止日期请使用有效的 YYYY-MM-DD 格式。' };
-  const start = fixed && date ? parseTime(draft.time) : date && original?.date === date ? original.start : null;
-  if (fixed && date && start === null) return { kind: 'error', error: '请输入有效的开始时间。' };
+  const manual = fixed || draft.timeMode === 'manual';
+  const start = manual && date ? parseTime(draft.time) : draft.timeMode === 'auto' ? null : date && original?.date === date ? original.start : null;
+  if (manual && date && start === null) return { kind: 'error', error: '请输入有效的开始时间。' };
   const timingChanged = !original || original.date !== date || original.start !== start || original.duration !== minutes;
   if ((timingChanged || original?.deadline !== (deadline || null)) && date && deadline
     && (date > deadline || start !== null && !finishesByDeadline(date, start, minutes, deadline))) {

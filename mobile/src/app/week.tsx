@@ -272,7 +272,7 @@ export default function Week() {
                 const segment = segments.find(item => item.task.id === piece.id && item.date === date)!;
                 const task = segment.task;
                 const cardHeight = isQuick(task) ? 36 : Math.max(12, segment.duration * pixelsPerMinute - 3);
-                return <WeekTaskCard key={`${task.id}-${date}`} task={task} displayStart={segment.start} continuation={segment.offset > 0} small={dayWidth / lanes < 90} availableHeight={cardHeight} unlocked={unlocked === task.id} dragging={drag?.task.id === task.id}
+                return <WeekTaskCard key={`${task.id}-${date}`} task={task} overlapping={lanes > 1} displayStart={segment.start} continuation={segment.offset > 0} small={dayWidth / lanes < 90} availableHeight={cardHeight} unlocked={unlocked === task.id} dragging={drag?.task.id === task.id}
                 style={{ position: 'absolute', top: (segment.start - startMinute) * pixelsPerMinute + 2,
                   left: GUTTER + dayIndex * dayWidth + lane * (dayWidth - 4) / lanes + 2,
                   width: (dayWidth - 4) / lanes - 1, height: cardHeight, zIndex: drag?.task.id === task.id ? 2 : 1 }}

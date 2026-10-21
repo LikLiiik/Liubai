@@ -27,6 +27,35 @@ test('adding automatic work repeatedly uses different free slots and preserves e
   assert.equal(new Set(tasks.map(item => item.id)).size, 6);
 });
 
+test('a manually chosen flexible start is saved precisely and overlap consent remains required', () => {
+  const manual = draft({ timeMode: 'manual', time: '15:37', duration: '45' });
+  const result = saved(saveTaskDraft([], settings, manual, context));
+  assert.equal(result.tasks[0].start, 937);
+  assert.equal(result.tasks[0].fixed, false);
+  const collision = task({ start: 945 });
+  const confirmation = saveTaskDraft([collision], settings, manual, context);
+  assert.equal(confirmation.kind, 'overlap');
+  if (confirmation.kind !== 'overlap') return;
+  assert.equal(saved(saveTaskDraft([collision], settings, manual, context, null, confirmation.key)).tasks[1].start, 937);
+  assert.equal(saveTaskDraft([collision], settings, { ...manual, time: '15:38' }, context, null, confirmation.key).kind, 'overlap');
+});
+
+test('manual starts respect dates, midnight and hard deadlines without forcing fixed status', () => {
+  assert.equal(saveTaskDraft([], settings, draft({ timeMode: 'manual', time: '25:00' }), context).kind, 'error');
+  assert.equal(saveTaskDraft([], settings, draft({ timeMode: 'manual', time: '23:50', duration: '30', deadline: context.today }), context).kind, 'error');
+  const midnight = saved(saveTaskDraft([], settings, draft({ date: '2026-10-22', timeMode: 'manual', time: '00:00' }), context));
+  assert.deepEqual([midnight.tasks[0].date, midnight.tasks[0].start, midnight.tasks[0].fixed], ['2026-10-22', 0, false]);
+});
+
+test('switching a chosen flexible placement back to automatic uses an available slot and keeps other events intact', () => {
+  const old = task({ id: 'new', fixed: false, start: 900 });
+  const meeting = task({ id: 'meeting', start: 840, duration: 60 });
+  const result = saved(saveTaskDraft([old, meeting], settings, draft({ timeMode: 'auto' }), context, old));
+  assert.equal(result.tasks[0].start, 900);
+  assert.deepEqual(result.tasks[1], meeting);
+  assert.equal(result.tasks[0].fixed, false);
+});
+
 test('insufficient capacity saves a pending task without overwriting any existing appointment', () => {
   const meeting = task({ duration: 240 });
   const result = saved(saveTaskDraft([meeting], settings, draft(), context));

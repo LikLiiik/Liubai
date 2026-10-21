@@ -1,9 +1,10 @@
 import type { PlanResult, Task } from './types.ts';
 import { calendarSegments, overlaps, shiftDate } from './time.ts';
-import { clock } from './utils.ts';
+import { clock, taskPosition } from './utils.ts';
 import { validDate } from './week.ts';
 
-export type Course = { key: string; title: string; weekday: number; weeks: number[]; periods: number[]; teacher: string; room: string; offset: number };
+export type Course = { key: string; title: string; weekday: number; weeks: number[]; periods: number[]; teacher: string; room: string; offset: number;
+  pending?: { reason: string; raw: string } };
 export type Semester = { year: string; term: string; monday: string };
 export type CourseDraft = { courses: Course[]; issues: string[]; ignored: number };
 export type CoursePreview = PlanResult & { added: number; updated: number; removed: number; unchanged: number; protected: number; conflicts: { key: string; message: string }[] };
@@ -43,11 +44,13 @@ export function parseNumbers(value: string, maximum: number): number[] {
   return [...result].sort((a, b) => a - b);
 }
 
-export function validSemester(semester: Semester): boolean {
+export function validSemesterTerm(semester: Pick<Semester, 'year' | 'term'>): boolean {
   const match = /^(\d{4})-(\d{4})$/.exec(semester.year);
-  return !!match && Number(match[2]) === Number(match[1]) + 1 && ['1', '2', '3'].includes(semester.term)
-    && validDate(semester.monday) && Number(semester.monday.slice(0, 4)) >= Number(match[1])
-    && Number(semester.monday.slice(0, 4)) <= Number(match[2]) && new Date(`${semester.monday}T12:00:00`).getDay() === 1;
+  return !!match && Number(match[2]) === Number(match[1]) + 1 && ['1', '2', '3'].includes(semester.term);
+}
+export function validSemester(semester: Semester): boolean {
+  return validSemesterTerm(semester) && validDate(semester.monday) && Number(semester.monday.slice(0, 4)) >= Number(semester.year.slice(0, 4))
+    && Number(semester.monday.slice(0, 4)) <= Number(semester.year.slice(5)) && new Date(`${semester.monday}T12:00:00`).getDay() === 1;
 }
 
 // Read the entire field before parsing numbers: accepting a numeric substring can
@@ -86,31 +89,36 @@ export function parseHitszCourses(payload: unknown): CourseDraft {
     try {
       if (!row || typeof row !== 'object' || typeof row.SKSJ !== 'string' || row.SKSJ.length > 10000) throw new Error('缺少课程信息');
       content = text(row.SKSJ).trim();
-      title = content.split('\n')[0].trim().split('[')[0].trim();
+      if (/^备注\s*[:：]/.test(content)) { ignored++; return; }
+      // [实验] is part of the title, unlike the following numeric schedule fields.
+      title = /^((?:\[(?:实验|实验课|上机|实践|理论|实习)\]\s*)*[^\[\n]*)/.exec(content)?.[1].trim().split(/备注\s*[:：]/)[0].trim() ?? '';
+      if (!title.replace(/\[(?:实验|实验课|上机|实践|理论|实习)\]/g, '').trim() || title.length > 100) throw new Error(title.length > 100 ? '课程名称过长' : '课程名称缺失');
       const weekday = Number(/xq([1-7])(?:\D|$)/i.exec(String(row.KEY ?? ''))?.[1]);
-      const weeksText = scheduleField(content, '周'), periodsText = scheduleField(content, '节');
-      if (/考试/.test(content) && !weeksText) throw new Error('考试安排暂不自动导入');
-      // Remarks (including MOOC entries) can follow the course name. Do not skip
-      // a scheduled course merely because it also has a remark.
-      if (/(?:^|\n)\s*备注\s*[:：]/.test(content) && !weeksText && !periodsText) { ignored++; return; }
-      const missing = [!title && '课程名称缺失', title.length > 100 && '课程名称过长', !weekday && '星期未识别', !weeksText && '周次未识别', !periodsText && '节次未识别'].filter(Boolean);
-      if (missing.length) throw new Error(missing.join('、'));
-      const readNumbers = (value: string, maximum: number, label: string) => {
-        try { return parseNumbers(value, maximum); }
-        catch (error) { throw new Error(`${label}「${value}」：${error instanceof Error ? error.message : '无法识别'}`); }
+      const missing: string[] = weekday ? [] : ['星期未识别'];
+      const readNumbers = (unit: '周' | '节', maximum: number) => {
+        let value: string | undefined;
+        try {
+          value = scheduleField(content, unit);
+          if (!value) { missing.push(`${unit === '周' ? '周次' : '节次'}未识别`); return []; }
+          return parseNumbers(value, maximum);
+        } catch (error) {
+          missing.push(`${unit === '周' ? '周次' : '节次'}${value ? `「${value}」` : ''}：${error instanceof Error ? error.message : '无法识别'}`);
+          return [];
+        }
       };
-      const weeks = readNumbers(weeksText!, 30, '周次'), periods = readNumbers(periodsText!, 12, '节次');
+      const weeks = readNumbers('周', 30), periods = readNumbers('节', 12);
       const extras = [...content.matchAll(/\[([^\]]+)\]([^\S\n]*[周节])?/g)].filter(match => !match[2])
-        .map(match => match[1].trim()).filter(value => !/[周节]/.test(value));
+        .map(match => match[1].trim()).filter(value => !/[周节]/.test(value) && !/^(实验|实验课|上机|实践|理论|实习)$/.test(value));
       const teacher = extras.length > 1 ? extras[0] : '';
       const room = extras.length > 1 ? extras.slice(1).join(' · ') : extras[0] ?? '';
-      const key = hash(JSON.stringify([title, teacher, weekday, weeks, periods]));
+      const pending = missing.length ? { reason: missing.join('、'), raw: content } : undefined;
+      const key = hash(JSON.stringify([title, teacher, weekday || 0, weeks, periods, ...(pending ? [content.replace(/\s+/g, ' ')] : [])]));
       if (seen.has(key)) {
         if (seen.get(key) !== room) throw new Error('同一课程存在不同地点，请核对课表');
         ignored++; return;
       }
       seen.set(key, room);
-      courses.push({ key, title, weekday, weeks, periods, teacher, room, offset: 0 });
+      courses.push({ key, title, weekday: weekday || 0, weeks, periods, teacher, room, offset: 0, ...(pending ? { pending } : {}) });
     } catch (error) {
       const name = title ? `「${title.slice(0, 60)}」` : '';
       const detail = content ? `\n课表原文：${content.replace(/\s+/g, ' ').slice(0, 240)}` : '';
@@ -126,16 +134,30 @@ export function courseFingerprint(task: Task): string {
 }
 
 export function expandCourses(courses: Course[], semester: Semester, sample = false): Task[] {
-  if (!validSemester(semester)) throw new Error('请填写有效学年、学期和第一周周一日期。');
+  if (!validSemesterTerm(semester) || courses.some(course => !course.pending) && !validSemester(semester)) throw new Error('请填写有效学年、学期和第一周周一日期。');
   const tasks: Task[] = [], seen = new Set<string>();
   for (const course of courses) {
     if (![0, 15].includes(course.offset)) throw new Error('课程时间偏移无效');
     const blocks: number[][] = [];
     for (const period of course.periods) {
       const previous = blocks[blocks.length - 1];
-      // Lunch, afternoon and evening breaks are separate occurrences.
       if (previous && period === previous[previous.length - 1] + 1 && ![5, 9].includes(period)) previous.push(period);
       else blocks.push([period]);
+    }
+    const semesterKey = `${semester.year}/${semester.term}${sample ? '/sample' : ''}`;
+    if (course.pending) {
+      const key = `pending:${course.key}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const task: Task = { id: `hitsz-${hash(semesterKey + key)}`, title: course.title,
+        notes: [sample ? '示例课表 · 哈工大（深圳）' : '哈尔滨工业大学（深圳）', `排课待确认：${course.pending.reason}`,
+          course.periods.length ? '预计时长按已识别节次计算。' : '节次待确认，预计时长暂按 30 分钟，可修改。', `课表原文：\n${course.pending.raw}`].join('\n'),
+        duration: blocks.reduce((sum, block) => sum + UNDERGRADUATE_PERIODS[block[block.length - 1] - 1][1] - UNDERGRADUATE_PERIODS[block[0] - 1][0], 0) || 30,
+        category: 'work', priority: 'normal', important: false, fixed: false, completed: false,
+        date: null, start: null, deadline: null, postponed: 0,
+        courseImport: { school: 'hitsz', semester: semesterKey, key, fingerprint: '', sample } };
+      task.courseImport!.fingerprint = courseFingerprint(task);
+      tasks.push(task); continue;
     }
     for (const week of course.weeks) for (const block of blocks) {
       const date = shiftDate(semester.monday, (week - 1) * 7 + course.weekday - 1);
@@ -145,7 +167,6 @@ export function expandCourses(courses: Course[], semester: Semester, sample = fa
       const key = JSON.stringify([course.title, course.teacher, date, block]);
       if (seen.has(key)) continue;
       seen.add(key);
-      const semesterKey = `${semester.year}/${semester.term}${sample ? '/sample' : ''}`;
       const task: Task = { id: `hitsz-${hash(semesterKey + key)}`, title: course.title, notes: [sample ? '示例课表 · 哈工大（深圳）' : '哈尔滨工业大学（深圳）', course.teacher && `教师：${course.teacher}`, course.room && `教室：${course.room}`, `第 ${week} 周 · 第 ${block.join('、')} 节`].filter(Boolean).join('\n'),
         duration: end - start, category: 'work', priority: 'normal', important: false, fixed: true, completed: false,
         date, start, deadline: null, postponed: 0,
@@ -173,7 +194,7 @@ export function previewCourseImport(original: Task[], incoming: Task[], semester
     if (task.completed || courseFingerprint(task) !== task.courseImport!.fingerprint) { result.protected++; continue; }
     if (!next) { removals.add(task.id); result.removed++; continue; }
     if (courseFingerprint(task) === courseFingerprint(next)) { result.unchanged++; continue; }
-    replacements.set(task.id, { ...task, title: next.title, notes: next.notes, date: next.date, start: next.start, duration: next.duration, fixed: true, courseImport: next.courseImport });
+    replacements.set(task.id, { ...task, title: next.title, notes: next.notes, date: next.date, start: next.start, duration: next.duration, fixed: next.fixed, courseImport: next.courseImport });
     result.updated++;
   }
   for (const next of desired.values()) {
@@ -197,12 +218,14 @@ export function previewCourseImport(original: Task[], incoming: Task[], semester
       conflictSet.add(key); result.valid = false;
     }
   }
-  for (const task of original.filter(task => removals.has(task.id))) result.changes.push({ taskId: task.id, title: task.title, from: `${task.date} ${clock(task.start!)}`, to: '移除', reason: '同步本学期课表' });
+  for (const task of original.filter(task => removals.has(task.id))) result.changes.push({ taskId: task.id, title: task.title, from: taskPosition(task, today), to: '移除', reason: '同步本学期课表' });
   for (const task of result.tasks.filter(task => changedIds.has(task.id))) {
     const old = originalById.get(task.id);
-    result.changes.push({ taskId: task.id, title: task.title, from: old ? `${old.date} ${clock(old.start!)}` : '新增', to: `${task.date} ${clock(task.start!)}`, reason: '导入哈工大（深圳）课表' });
+    result.changes.push({ taskId: task.id, title: task.title, from: old ? taskPosition(old, today) : '新增', to: taskPosition(task, today), reason: '导入哈工大（深圳）课表' });
   }
   if (result.protected) result.warnings.push(`${result.protected} 项已完成或手动修改的课程保留原记录。`);
-  if (incoming.some(task => task.date! < today)) result.warnings.push('包含过去日期，导入后仍为未完成状态。');
+  const pendingCount = incoming.filter(task => task.date === null).length;
+  if (pendingCount) result.warnings.push(`${pendingCount} 门课程排课时间未识别，将放入收集箱，保留原文供核对。`);
+  if (incoming.some(task => task.date && task.date < today)) result.warnings.push('包含过去日期，导入后仍为未完成状态。');
   return result;
 }
