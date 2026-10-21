@@ -1,0 +1,32 @@
+{
+  "name": "留白",
+  "version": "0.5.0",
+  "androidVersionCode": 9,
+  "package": "app.liubai.planner",
+  "sizeBytes": 99962407,
+  "sha256": "4c31c113fbb79f279c4b34ac12c1bb54e2ec2a0a307fc7c1f67e6de7b60881da",
+  "signingCertificateSha256": [
+    "fd79101f01e41c48c8370ded86dd4e420eee63f22cd5fdc3d94ce9f0be14cf9e"
+  ],
+  "checks": {
+    "archiveCrc": "passed",
+    "package": "passed",
+    "embeddedBundle": "passed",
+    "arm64Libraries": "passed",
+    "schoolReaderBundle": "passed",
+    "schoolNetworkResource": "passed",
+    "nativeWebView": "passed",
+    "signature": "passed",
+    "signingContinuity": "passed"
+  },
+  "file": "liubai-0.5.0-android.apk",
+  "buildId": "e412d70f-a948-44cf-a55b-fe7b463bfe2d",
+  "buildUrl": "https://expo.dev/accounts/likliiik/projects/liubai-planner/builds/e412d70f-a948-44cf-a55b-fe7b463bfe2d",
+  "buildDownloadUrl": "https://expo.dev/artifacts/eas/na0TaJ4qUwykQV9MbBzkjChRfR15VSBuG1H4q79AIF8.apk",
+  "downloadUrl": "https://github.com/LikLiiik/Liubai/releases/download/v0.5.0/liubai-0.5.0-android.apk",
+  "sourceCommit": "00f6b5d637aa3a4132ff1443ba9d5654ae9f8a65",
+  "notes": "· 事件结束通知提供「标记已完成」和「一键救场」，直接处理或进入对应事件的救场方案。\n· 周览支持双指横纵缩放，左侧时间轴固定；事件详情和重点星标随卡片大小变化。\n· 日期统一为年月日分栏数字输入与滚轮选择，联动校验范围、闰年和月底日期。\n· 哈工大（深圳）课表支持重叠课程导入；可选择学年及秋季、春季、夏季学期。\n· 原时段已结束的事件撤销完成时，可选择空闲时间自动安排或自己选时间；后续事件的提前可保留或取消，确认后保存并支持回顾撤销。\n· 新手指引更新至第 19 版，加入通知、缩放、日期、课表与重新安排的独立演示，保留原有完成记录。",
+  "deviceTesting": "pending",
+  "schoolLiveLogin": "pending",
+  "schoolLiveCourseQuery": "pending"
+}
