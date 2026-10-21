@@ -1,10 +1,10 @@
 {
   "name": "留白",
-  "version": "0.4.1",
-  "androidVersionCode": 8,
+  "version": "0.5.0",
+  "androidVersionCode": 9,
   "package": "app.liubai.planner",
-  "sizeBytes": 99875635,
-  "sha256": "5643740844cb3ba52d9fea45a979a0eb64d81cf23ff8e389bfd1247df8dc4177",
+  "sizeBytes": 99962407,
+  "sha256": "4c31c113fbb79f279c4b34ac12c1bb54e2ec2a0a307fc7c1f67e6de7b60881da",
   "signingCertificateSha256": [
     "fd79101f01e41c48c8370ded86dd4e420eee63f22cd5fdc3d94ce9f0be14cf9e"
   ],
@@ -19,13 +19,13 @@
     "signature": "passed",
     "signingContinuity": "passed"
   },
-  "file": "liubai-0.4.1-android.apk",
-  "buildId": "f57b771a-91dd-440c-b8e2-c381f018f730",
-  "buildUrl": "https://expo.dev/accounts/likliiik/projects/liubai-planner/builds/f57b771a-91dd-440c-b8e2-c381f018f730",
-  "buildDownloadUrl": "https://expo.dev/artifacts/eas/FbGBZiJT1zaQcJ1cyNcXMVCvEsE125yRB3etqFmYVoY.apk",
-  "downloadUrl": "https://github.com/LikLiiik/Liubai/releases/download/v0.4.1/liubai-0.4.1-android.apk",
-  "sourceCommit": "03663e606993ad84a84dc79beeb236f48230d1c4",
-  "notes": "· 重叠事件合并计算时间占用和连续空档，避免重复扣减。\n· 修正带「实验」前缀的课表课程名；时间未识别的课程保留原文导入收集箱，之后核对安排。\n· 周览重叠并排卡片隐藏星标，普通卡片仍可直接设置重点。\n· 添加任务可选自动安排或指定日期和开始时间，是否固定单独选择；手动重叠仍需确认。\n· 首页新增 25 组按时段变化的昵称问候；重新进入首页或返回前台时更换，同一时段相邻不重复。\n· 新手指引更新至第 13 版，新增指定时间与问候切换演示，保留原有完成记录。",
+  "file": "liubai-0.5.0-android.apk",
+  "buildId": "e412d70f-a948-44cf-a55b-fe7b463bfe2d",
+  "buildUrl": "https://expo.dev/accounts/likliiik/projects/liubai-planner/builds/e412d70f-a948-44cf-a55b-fe7b463bfe2d",
+  "buildDownloadUrl": "https://expo.dev/artifacts/eas/na0TaJ4qUwykQV9MbBzkjChRfR15VSBuG1H4q79AIF8.apk",
+  "downloadUrl": "https://github.com/LikLiiik/Liubai/releases/download/v0.5.0/liubai-0.5.0-android.apk",
+  "sourceCommit": "00f6b5d637aa3a4132ff1443ba9d5654ae9f8a65",
+  "notes": "· 事件结束通知提供「标记已完成」和「一键救场」，直接处理或进入对应事件的救场方案。\n· 周览支持双指横纵缩放，左侧时间轴固定；事件详情和重点星标随卡片大小变化。\n· 日期统一为年月日分栏数字输入与滚轮选择，联动校验范围、闰年和月底日期。\n· 哈工大（深圳）课表支持重叠课程导入；可选择学年及秋季、春季、夏季学期。\n· 原时段已结束的事件撤销完成时，可选择空闲时间自动安排或自己选时间；后续事件的提前可保留或取消，确认后保存并支持回顾撤销。\n· 新手指引更新至第 19 版，加入通知、缩放、日期、课表与重新安排的独立演示，保留原有完成记录。",
   "deviceTesting": "pending",
   "schoolLiveLogin": "pending",
   "schoolLiveCourseQuery": "pending"
